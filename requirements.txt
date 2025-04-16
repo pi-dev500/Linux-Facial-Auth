@@ -1,0 +1,7 @@
+pydbus
+PyGObject
+opencv-python
+numpy
+openvino
+yaml
+requests
