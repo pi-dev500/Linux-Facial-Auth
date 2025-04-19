@@ -20,6 +20,35 @@ rec_model_path = os.path.join(DIR,"models/face-reidentification-retail-0095.xml"
 rec_model = core.read_model(rec_model_path)
 compiled_rec = core.compile_model(rec_model, "CPU")
 
+# Image improvements
+def gray_world_correction(img):
+    avg_b = np.mean(img[:, :, 0])
+    avg_g = np.mean(img[:, :, 1])
+    avg_r = np.mean(img[:, :, 2])
+
+    avg_gray = (avg_b + avg_g + avg_r) / 3
+    scale_b = avg_gray / avg_b
+    scale_g = avg_gray / avg_g
+    scale_r = avg_gray / avg_r
+
+    img[:, :, 0] = np.clip(img[:, :, 0] * scale_b, 0, 255)
+    img[:, :, 1] = np.clip(img[:, :, 1] * scale_g, 0, 255)
+    img[:, :, 2] = np.clip(img[:, :, 2] * scale_r, 0, 255)
+
+    return img.astype(np.uint8)
+
+def apply_clahe(img):
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    cl = clahe.apply(l)
+
+    merged = cv2.merge((cl, a, b))
+    enhanced = cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
+    return enhanced
+
+
 # --- Utility: Cosine Similarity ---
 def cosine_similarity(a, b):
     """Check the cosine similarity of two vertex arrays"""
@@ -31,17 +60,10 @@ def cosine_similarity(a, b):
 if os.path.exists(os.path.join(DIR,"preload_embeddings.pkl")):
     with open(os.path.join(DIR,"preload_embeddings.pkl"), "rb") as f:
         ref_embeddings = pickle.load(f)
-elif os.path.exists(os.path.join(DIR,"images")):
-    # Fallback: compute and save [deprecated because anything should be in the pkl preload]
-    ref_images = [cv2.imread(os.path.join(DIR,f"/images/{file}")) for file in os.listdir(os.path.join(DIR,"images"))]
-    ref_faces = [cv2.resize(ref_image, (128, 128)) for ref_image in ref_images]
-    ref_faces = [ref_face.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32) for ref_face in ref_faces]
-    ref_embeddings = [compiled_rec([ref_face])[compiled_rec.output(0)] for ref_face in ref_faces]
-
-    with open(os.path.join(DIR,"preload_embeddings.pkl"), "wb") as f: # save the preload
-        pickle.dump(ref_embeddings, f)
+        if type(ref_embeddings)==list: # single-user format
+            ref_embeddings={os.environ["USER"]:[ref_embeddings]}
 else:
-    ref_embeddings = []
+    ref_embeddings = {os.environ["USER"]:[]}
 #----End data loader-----------------------
 
 # --- Helper: Process detection results ---
@@ -74,13 +96,15 @@ if len(ref_embeddings)>100: # lighten the presaved things
     with open(os.path.join(DIR,"preload_embeddings.pkl"), "wb") as f:
         pickle.dump(ref_embeddings, f)
 
-def check(n_try=5):
+def check(username,n_try=5):
     """
     Deserves to the face recognition in itself.
     Called by the daemon when it receives an auth request
     take as argument the numbers of frames to check, spaced by ~0.1 second
     """
-    if len(ref_embeddings)<2:
+    if not username in ref_embeddings:
+        return "fail"
+    if len(ref_embeddings[username])==0:
         return "Error: training base is too small"
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
@@ -91,6 +115,7 @@ def check(n_try=5):
             break
         frame=cv2.filter2D(frame,-1,np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
         frame = cv2.medianBlur(frame,3)
+        frame = apply_clahe(frame)
         # 1. Detect faces using the detection model
         # Preprocess frame for detection (resize to model's expected input, e.g., 300x300)
         det_input_size = (300, 300)  # Adjust if needed
@@ -108,19 +133,21 @@ def check(n_try=5):
                 continue
             # 3. Run recognition on the face crop
             rec_face = cv2.resize(face_crop, (128, 128))
+            rec_face = gray_world_correction(rec_face)
             rec_input = rec_face.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
             rec_embedding = compiled_rec([rec_input])[compiled_rec.output(0)]
             # Compare with every reference embedding
-            similarities = [cosine_similarity(ref_emb, rec_embedding) for ref_emb in ref_embeddings]
-            # You can adjust your threshold accordingly
-            is_match = any([sim > 0.7 for sim in similarities])
-            if is_match:
-                cap.release()
-                if all([sim < 0.8 for sim in similarities]) and len(ref_embeddings)<500: # use as training image
-                    ref_embeddings.append(rec_embedding)
-                    with open(os.path.join(DIR,"preload_embeddings.pkl"), "wb") as f:
-                        pickle.dump(ref_embeddings, f)
-                return "pass"
+            for user_face in ref_embeddings[username]:
+                similarities = [cosine_similarity(ref_emb, rec_embedding) for ref_emb in user_face]
+                # You can adjust your threshold accordingly
+                is_match = any([sim > 0.7 for sim in similarities])
+                if is_match:
+                    cap.release()
+                    if all([sim < 0.8 for sim in similarities]) and len(user_face)<500: # use as training image
+                        user_face.append(rec_embedding)
+                        with open(os.path.join(DIR,"preload_embeddings.pkl"), "wb") as f:
+                            pickle.dump(ref_embeddings, f)
+                    return "pass"
         time.sleep(0.1)
     cap.release()
     return "fail"
@@ -134,9 +161,13 @@ def add_face():
     
     !WARN! That can be unsafe, as if your camera takes too bad photos, this can help someone else to get recognized more easely.
     
-    But in most cases, it just improve performance.
+    But in most cases, it just improve performance (you need less frames to be recognized).
     """
-    
+    username=os.environ["USER"]
+    new_face=[]
+    if not username in ref_embeddings:
+        ref_embeddings[username]=[]
+    ref_embeddings[username].append(new_face)
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         return "Error: Failed to open Webcam"
@@ -144,9 +175,9 @@ def add_face():
         ret, frame = cap.read()
         if not ret:
             break
-        frame=cv2.filter2D(frame,-1,np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
-        frame = cv2.medianBlur(frame,3)
-        
+        frame = apply_clahe(frame)
+        frame = gray_world_correction(frame)
+        frame = cv2.filter2D(frame,-1,np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
         # 1. Detect faces using the detection model
         # Preprocess frame for detection (resize to model's expected input, e.g., 300x300)
         det_input_size = (300, 300)  # Adjust if needed
@@ -166,16 +197,17 @@ def add_face():
                 continue
             # 3. Run recognition on the face crop
             rec_face = cv2.resize(face_crop, (128, 128))
+            rec_face = gray_world_correction(rec_face)
             rec_input = rec_face.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
             rec_embedding = compiled_rec([rec_input])[compiled_rec.output(0)]
             # Compare with every reference embedding
-            similarities = [cosine_similarity(ref_emb, rec_embedding) for ref_emb in ref_embeddings]
+            similarities = [cosine_similarity(ref_emb, rec_embedding) for ref_emb in new_face]
             face_preview = cv2.resize(rec_face, (128, 128))
             cv2.imshow("Face Crop", rec_face)
             # You can adjust your threshold accordingly
-            if (all([0.4 < sim < 0.8 for sim in similarities]) and len(ref_embeddings)<50) or len(ref_embeddings)==0: # use as training image
-                ref_embeddings.append(rec_embedding)
-                print(len(ref_embeddings),"/",50,"training frames saved...")
+            if (all([0.4 < sim < 0.8 for sim in similarities]) and len(new_face)<50) or len(new_face)==0: # use as training image
+                new_face.append(rec_embedding)
+                print(len(new_face),"/",50,"training frames saved...")
         cv2.imshow("Webcam - Press 's' to save face", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break

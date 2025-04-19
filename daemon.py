@@ -18,14 +18,15 @@ class Daemon(object):
     <node>
         <interface name='org.linux.FaceRecognition'>
             <method name='CheckFace'>
+                <arg type='s' name='user' direction='in'/>
                 <arg type='i' name='attempts' direction='in'/>
                 <arg type='s' name='response' direction='out'/>
             </method>
         </interface>
     </node>
     """
-    def CheckFace(self, attempts=5):
-        return check(attempts)
+    def CheckFace(self, user,attempts=5):
+        return check(user,attempts)
 
 def socket_listener():
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -37,15 +38,21 @@ def socket_listener():
         conn, _ = server.accept()
         with conn:
             try:
-                data = conn.recv(32)
-                if data.strip() == b'CheckFace':
-                    result = check(5)
-                    conn.sendall(result.encode('utf-8'))
+                data = conn.recv(32).strip().decode("utf-8").split("\n")
+                if data[0] == 'CheckFace':
+                    result = check(data[1],5)
+                    try:
+                        conn.sendall(result.encode('utf-8'))
+                    except BrokenPipeError:
+                        print("[socket] Client disconnected (broken pipe) during result send")
                 else:
                     conn.sendall(b"error")
             except Exception as e:
                 print(f"Socket error: {e}")
-                conn.sendall(b"fail")
+                try:
+                    conn.sendall(b"fail")
+                except BrokenPipeError:
+                        print("[socket] Client disconnected (broken pipe) during result send")
 try:
     # Launch socket listener thread
     threading.Thread(target=socket_listener, daemon=True).start()

@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <syslog.h>
 #include <errno.h>
-
+#include <stdlib.h>  // for malloc
 #define SOCKET_PATH_FORMAT "/run/user/%d/face.sock"
 
 int pam_sm_authenticate(pam_handle_t *pamh, int flags,
@@ -19,6 +19,13 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
     char buf[32];
     ssize_t n;
     uid_t uid = getuid();
+
+    // 🧠 Get username
+    const char *username = NULL;
+    if (pam_get_user(pamh, &username, NULL) != PAM_SUCCESS || username == NULL) {
+        pam_syslog(pamh, LOG_ERR, "Failed to get username");
+        return PAM_AUTH_ERR;
+    }
 
     snprintf(socket_path, sizeof(socket_path), SOCKET_PATH_FORMAT, uid);
 
@@ -37,7 +44,19 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
         return PAM_AUTH_ERR;
     }
 
-    write(fd, "CheckFace", 9);
+    // 📦 Build message: "CheckFace\n<username>\n"
+    size_t msg_len = strlen("CheckFace\n") + strlen(username) + 2;
+    char *msg = malloc(msg_len);
+    if (!msg) {
+        pam_syslog(pamh, LOG_ERR, "malloc() failed");
+        close(fd);
+        return PAM_AUTH_ERR;
+    }
+    snprintf(msg, msg_len, "CheckFace\n%s\n", username);
+
+    write(fd, msg, strlen(msg));
+    free(msg);
+
     n = read(fd, buf, sizeof(buf) - 1);
     close(fd);
 
@@ -54,9 +73,3 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
         return PAM_AUTH_ERR;
     }
 }
-
-int pam_sm_setcred(pam_handle_t *pamh, int flags,
-                   int argc, const char **argv) {
-    return PAM_SUCCESS;
-}
-
