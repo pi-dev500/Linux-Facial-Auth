@@ -1,0 +1,9 @@
+[Unit]
+Description=Start face recognition daemon
+
+[Service]
+ExecStart=python /usr/share/face_recognition/daemon.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

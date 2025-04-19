@@ -3,10 +3,10 @@ import os
 import socket
 import threading
 from gi.repository import GLib
-from pydbus import SessionBus
+from pydbus import SystemBus
 from facerec import check
 
-SOCKET_PATH = f"/run/user/{os.getuid()}/face.sock"
+SOCKET_PATH = f"/run/face.sock"
 
 # Clean up old socket
 if os.path.exists(SOCKET_PATH):
@@ -59,7 +59,7 @@ try:
 
     # D-Bus
     loop = GLib.MainLoop()
-    bus = SessionBus()
+    bus = SystemBus()
     bus.publish("org.linux.Face", Daemon())
     print("Daemon running. Ctrl+C to stop.")
     loop.run()

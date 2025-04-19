@@ -9,11 +9,11 @@
 #include <syslog.h>
 #include <errno.h>
 #include <stdlib.h>  // for malloc
-#define SOCKET_PATH_FORMAT "/run/user/%d/face.sock"
+#define SOCKET_PATH_FORMAT "/run/face.sock"
 
 int pam_sm_authenticate(pam_handle_t *pamh, int flags,
                         int argc, const char **argv) {
-    char socket_path[108];
+    ///char socket_path =SOCKET_PATH_FORMAT;
     struct sockaddr_un addr;
     int fd;
     char buf[32];
@@ -27,7 +27,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
         return PAM_AUTH_ERR;
     }
 
-    snprintf(socket_path, sizeof(socket_path), SOCKET_PATH_FORMAT, uid);
+    //snprintf(socket_path, sizeof(socket_path), SOCKET_PATH_FORMAT, uid);
 
     if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
         pam_syslog(pamh, LOG_ERR, "socket() failed: %s", strerror(errno));
@@ -36,7 +36,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 
     memset(&addr, 0, sizeof(struct sockaddr_un));
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
+    strncpy(addr.sun_path, SOCKET_PATH_FORMAT, sizeof(addr.sun_path) - 1);
 
     if (connect(fd, (struct sockaddr *)&addr, sizeof(struct sockaddr_un)) == -1) {
         pam_syslog(pamh, LOG_ERR, "connect() failed: %s", strerror(errno));
