@@ -1,8 +1,10 @@
+#!/usr/bin/env python
 import sys
 import cv2
 import numpy as np
 from openvino import Core
 import os
+import subprocess
 import pickle
 import time
 DIR = os.path.dirname(__file__)
@@ -109,8 +111,10 @@ def check(username,n_try=5):
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         return "Error: Failed to open Webcam"
-    for i in range(n_try):
+    for i in range(n_try+1):
         ret, frame = cap.read()
+        if i==0:
+            continue # don't use the first frame because it is in the accomodation time of the camera
         if not ret:
             break
         frame=cv2.filter2D(frame,-1,np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
@@ -205,20 +209,26 @@ def add_face():
             face_preview = cv2.resize(rec_face, (128, 128))
             cv2.imshow("Face Crop", rec_face)
             # You can adjust your threshold accordingly
-            if (all([0.4 < sim < 0.8 for sim in similarities]) and len(new_face)<50) or len(new_face)==0: # use as training image
+            if (all([0.4 < sim < 0.8 for sim in similarities]) and len(new_face)<30) or len(new_face)==0: # use as training image
                 new_face.append(rec_embedding)
-                print(len(new_face),"/",50,"training frames saved...")
+                print("",len(new_face),"/",30,"training frames saved...", end="\r")
         cv2.imshow("Webcam - Press 's' to save face", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-        if len(ref_embeddings)==50:
+        if len(new_face)==30:
             print("Succeeded to record needed data...\nYour face has been setup.")
             break
                 
     cap.release()
-    # save faces as vertex data (safer than images)
-    with open(os.path.join(DIR,"preload_embeddings.pkl"), "wb") as f:
+    # save faces as vertex data (safer than images and faster to load)
+    tmp_path="/tmp/facerec.tmp"
+    print("Please enter your password in order to save your new face:")
+    with open(tmp_path, "wb") as f:
         pickle.dump(ref_embeddings, f)
+    try:
+        subprocess.check_output(["sudo","bash", "-c", f"mv {tmp_path} '{os.path.join(DIR,"preload_embeddings.pkl")}' && systemctl restart org.FaceRecognition"])
+    except subprocess.CalledProcessError:
+        print("Failed to save face!!! Maybe you don't have root permissions !")
         
 if __name__=="__main__":
     if sys.argv[1]=="add":
