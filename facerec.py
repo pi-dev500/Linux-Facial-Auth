@@ -8,6 +8,7 @@ import subprocess
 import pickle
 import time
 DIR = os.path.dirname(__file__)
+CAP_PATHS=["/dev/video0","/dev/video2"] # fallback mechanism
 CAPTURE_PATH="/dev/video2"
 CONFIDENCE_THRESHOLD=0.7
 IMPROVE_THRESHOLD=0.8
@@ -112,7 +113,7 @@ def check_quality(image):
     if to_check.std() <20:
         return False
     return True
-def check_allowed(image): # don't try if laptop camera is obstructed
+def check_light(image): # don't try if laptop camera is obstructed
     to_check = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     return False if to_check.mean()<20 else True
 
@@ -172,15 +173,16 @@ def check(username,n_try=5):
     Called by the daemon when it receives an auth request
     take as argument the numbers of frames to check, spaced by ~0.1 second
     """
+    available_caps=[c for c in CAP_PATHS]
     if not username in ref_embeddings:
         return "fail"
     if len(ref_embeddings[username])==0:
         return "Error: training base is too small"
-    cap = cv2.VideoCapture(CAPTURE_PATH, cv2.CAP_V4L2)
+    cap = cv2.VideoCapture(available_caps.pop(0), cv2.CAP_V4L2)
     if not cap.isOpened():
         return "Error: Failed to open Webcam"
     attempts_count=0
-    
+    ret, frame = cap.read()
     while attempts_count<n_try:
         did_try=0
         ret, frame = cap.read()
@@ -188,8 +190,12 @@ def check(username,n_try=5):
             break
         
         frame = ensure_bgr(frame)
-        if not check_allowed(frame):
-            return "fail"
+        if not check_light(frame):
+            cap.release()
+            if len(available_caps):
+                cap = cv2.VideoCapture(available_caps.pop(), cv2.CAP_V4L2)
+            else:
+                return "fail"
         frame = apply_clahe(frame)
         frame = gray_world_correction(frame)
         frame = cv2.filter2D(frame,-1,np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
@@ -233,7 +239,7 @@ def check(username,n_try=5):
     
 
     
-def add_face(face_name=...):
+def add_face(cap_path=...,face_name=...):
     """
     python facerec.py add
     Allow to save needed data for good performance on first unlock attempts.
@@ -243,6 +249,8 @@ def add_face(face_name=...):
     
     But in most cases, it just improve performance (you need less frames to be recognized).
     """
+    if cap_path==... or not os.path.exists(cap_path):
+        cap_path=CAP_PATHS[0]
     username=os.environ["USER"]
     new_face=[]
     if not username in ref_embeddings:
@@ -254,7 +262,7 @@ def add_face(face_name=...):
         while str(i) in ref_embeddings[username]: i+=1
         face_name=str(i)
     ref_embeddings[username][face_name]=new_face
-    cap = cv2.VideoCapture("/dev/video2", cv2.CAP_V4L2)
+    cap = cv2.VideoCapture(cap_path, cv2.CAP_V4L2)
     if not cap.isOpened():
         return "Error: Failed to open Webcam"
     while True:
