@@ -8,6 +8,28 @@ import subprocess
 import pickle
 import time
 DIR = os.path.dirname(__file__)
+CAPTURE_PATH="/dev/video2"
+CONFIDENCE_THRESHOLD=0.7
+IMPROVE_THRESHOLD=0.8
+FIRST_TRAIN_SIZE=25
+USAGE = f"""\
+Usage:
+    {sys.argv[0]} add [face_name]
+        - Add a new face for recognition.
+        - Optionally specify a face_name (default is next available integer).
+
+    {sys.argv[0]} remove [face_name1 face_name2 ...]
+        - Remove one or more saved faces by their names.
+        - If 'all' is provided, all saved faces for the current user will be deleted.
+
+    {sys.argv[0]} check
+        - Attempt to recognize the current user using the webcam.
+
+Notes:
+    - Recognition and training use OpenVINO models located in ./models.
+    - sudo privileges are needed to save or delete faces.
+"""
+
 # --- Initialize OpenVINO ---
 core = Core()
 
@@ -21,6 +43,29 @@ compiled_det = core.compile_model(det_model, "CPU")
 rec_model_path = os.path.join(DIR,"models/face-reidentification-retail-0095.xml")
 rec_model = core.read_model(rec_model_path)
 compiled_rec = core.compile_model(rec_model, "CPU")
+
+def ensure_bgr(frame):
+    """Ensure a frame is in BGR 3-channel format."""
+    if frame is None:
+        raise ValueError("Input frame is None")
+
+    if len(frame.shape) == 2:
+        # Grayscale image (height, width)
+        return cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+    elif len(frame.shape) == 3:
+        if frame.shape[2] == 1:
+            # Grayscale with 1-channel
+            return cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+        elif frame.shape[2] == 3:
+            # Already BGR
+            return frame
+        elif frame.shape[2] == 4:
+            # BGRA -> BGR (remove alpha channel)
+            return cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+        else:
+            raise ValueError(f"Unsupported number of channels: {frame.shape[2]}")
+    else:
+        raise ValueError("Unsupported frame shape")
 
 # Image improvements
 def gray_world_correction(img):
@@ -50,6 +95,26 @@ def apply_clahe(img):
     enhanced = cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
     return enhanced
 
+def is_blurry(image, threshold=100.0):
+    laplacian_var = cv2.Laplacian(image, cv2.CV_64F).var()
+    return laplacian_var < threshold
+
+def check_quality(image):
+    to_check = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    if image.size == 0:
+        return False
+    if is_blurry(to_check):
+        return False
+    # avoid light problems
+    if to_check.mean() < 75 or to_check.mean() > 180:
+        return False
+    # better contrast
+    if to_check.std() <20:
+        return False
+    return True
+def check_allowed(image): # don't try if laptop camera is obstructed
+    to_check = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    return False if to_check.mean()<20 else True
 
 # --- Utility: Cosine Similarity ---
 def cosine_similarity(a, b):
@@ -63,9 +128,12 @@ if os.path.exists(os.path.join(DIR,"preload_embeddings.pkl")):
     with open(os.path.join(DIR,"preload_embeddings.pkl"), "rb") as f:
         ref_embeddings = pickle.load(f)
         if type(ref_embeddings)==list: # single-user format
-            ref_embeddings={os.environ["USER"]:[ref_embeddings]}
+            ref_embeddings={os.environ["USER"]:{0:ref_embeddings}}
 else:
-    ref_embeddings = {os.environ["USER"]:[]}
+    ref_embeddings = {os.environ["USER"]:{}}
+for user, faces in enumerate(ref_embeddings): # turn in  dictionnary for easier embedding
+    if type(faces)==list:
+        ref_embeddings[user]={str(i): content for i, content in enumerate(faces)}
 #----End data loader-----------------------
 
 # --- Helper: Process detection results ---
@@ -108,18 +176,23 @@ def check(username,n_try=5):
         return "fail"
     if len(ref_embeddings[username])==0:
         return "Error: training base is too small"
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(CAPTURE_PATH, cv2.CAP_V4L2)
     if not cap.isOpened():
         return "Error: Failed to open Webcam"
-    for i in range(n_try+1):
+    attempts_count=0
+    
+    while attempts_count<n_try:
+        did_try=0
         ret, frame = cap.read()
-        if i==0:
-            continue # don't use the first frame because it is in the accomodation time of the camera
         if not ret:
             break
-        frame=cv2.filter2D(frame,-1,np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
-        frame = cv2.medianBlur(frame,3)
+        
+        frame = ensure_bgr(frame)
+        if not check_allowed(frame):
+            return "fail"
         frame = apply_clahe(frame)
+        frame = gray_world_correction(frame)
+        frame = cv2.filter2D(frame,-1,np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
         # 1. Detect faces using the detection model
         # Preprocess frame for detection (resize to model's expected input, e.g., 300x300)
         det_input_size = (300, 300)  # Adjust if needed
@@ -133,31 +206,34 @@ def check(username,n_try=5):
         for (xmin, ymin, xmax, ymax, conf) in boxes:
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
-            if face_crop.size == 0:
+            if not check_quality(face_crop):
                 continue
+            did_try=1
             # 3. Run recognition on the face crop
             rec_face = cv2.resize(face_crop, (128, 128))
             rec_face = gray_world_correction(rec_face)
             rec_input = rec_face.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
             rec_embedding = compiled_rec([rec_input])[compiled_rec.output(0)]
             # Compare with every reference embedding
-            for user_face in ref_embeddings[username]:
+            for key, user_face in ref_embeddings[username].items():
                 similarities = [cosine_similarity(ref_emb, rec_embedding) for ref_emb in user_face]
                 # You can adjust your threshold accordingly
-                is_match = any([sim > 0.7 for sim in similarities])
+                is_match = any([sim > CONFIDENCE_THRESHOLD for sim in similarities])
                 if is_match:
                     cap.release()
-                    if all([sim < 0.8 for sim in similarities]) and len(user_face)<500: # use as training image
+                    if all([sim < IMPROVE_THRESHOLD for sim in similarities]) and len(user_face)<500: # use as training image
                         user_face.append(rec_embedding)
                         with open(os.path.join(DIR,"preload_embeddings.pkl"), "wb") as f:
                             pickle.dump(ref_embeddings, f)
                     return "pass"
-        time.sleep(0.1)
+        attempts_count+=did_try
+        time.sleep(0.05)
     cap.release()
     return "fail"
     
+
     
-def add_face():
+def add_face(face_name=...):
     """
     python facerec.py add
     Allow to save needed data for good performance on first unlock attempts.
@@ -170,15 +246,22 @@ def add_face():
     username=os.environ["USER"]
     new_face=[]
     if not username in ref_embeddings:
-        ref_embeddings[username]=[]
-    ref_embeddings[username].append(new_face)
-    cap = cv2.VideoCapture(0)
+        ref_embeddings[username]={}
+    elif face_name in ref_embeddings[username]:
+        print("Unable to save face with this name, because it has already been taken...")
+    if face_name==...: # use the first integer that was not used
+        i=0
+        while str(i) in ref_embeddings[username]: i+=1
+        face_name=str(i)
+    ref_embeddings[username][face_name]=new_face
+    cap = cv2.VideoCapture("/dev/video2", cv2.CAP_V4L2)
     if not cap.isOpened():
         return "Error: Failed to open Webcam"
     while True:
         ret, frame = cap.read()
         if not ret:
             break
+        frame = ensure_bgr(frame)
         frame = apply_clahe(frame)
         frame = gray_world_correction(frame)
         frame = cv2.filter2D(frame,-1,np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
@@ -197,7 +280,7 @@ def add_face():
             cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
-            if face_crop.size == 0:
+            if not check_quality(face_crop):
                 continue
             # 3. Run recognition on the face crop
             rec_face = cv2.resize(face_crop, (128, 128))
@@ -209,14 +292,14 @@ def add_face():
             face_preview = cv2.resize(rec_face, (128, 128))
             cv2.imshow("Face Crop", rec_face)
             # You can adjust your threshold accordingly
-            if (all([0.4 < sim < 0.8 for sim in similarities]) and len(new_face)<30) or len(new_face)==0: # use as training image
+            if (all([0.4 < sim < IMPROVE_THRESHOLD for sim in similarities]) and len(new_face)<FIRST_TRAIN_SIZE) or len(new_face)==0: # use as training image
                 new_face.append(rec_embedding)
-                print("",len(new_face),"/",30,"training frames saved...", end="\r")
+                print("",len(new_face),"/",FIRST_TRAIN_SIZE,"training frames saved...", end="\r")
         cv2.imshow("Webcam - Press 's' to save face", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-        if len(new_face)==30:
-            print("Succeeded to record needed data...\nYour face has been setup.")
+        if len(new_face)>=FIRST_TRAIN_SIZE:
+            print("Succeeded to record needed data...\nYour face has been recorded.")
             break
                 
     cap.release()
@@ -227,9 +310,40 @@ def add_face():
         pickle.dump(ref_embeddings, f)
     try:
         subprocess.check_output(["sudo","bash", "-c", f"mv {tmp_path} '{os.path.join(DIR,"preload_embeddings.pkl")}' && systemctl restart org.FaceRecognition"])
+        print(f"Saved your face as {face_name} successfully. The daemon has been restarted and will be opperating in a few seconds.")
     except subprocess.CalledProcessError:
         print("Failed to save face!!! Maybe you don't have root permissions !")
-        
+    
+def remove_face(*selection):
+    username=os.environ["USER"]
+    if len(selection)==0 or "all" in selection:
+        input("Are you sure to delete all your saved faces ? They can't be restored. Type your root password to continue.")
+        del ref_embeddings[username]
+    else:
+        for face_name in set(selection):
+            try:
+                del ref_embeddings[username][face_name]
+            except IndexError:
+                print(f"Unable to delete {face_name}, because it doesn't exists...")
+    tmp_path="/tmp/facerec.tmp"
+    print("Please enter your password in order to save your new face:")
+    with open(tmp_path, "wb") as f:
+        pickle.dump(ref_embeddings, f)
+    try:
+        subprocess.check_output(["sudo","bash", "-c", f"mv {tmp_path} '{os.path.join(DIR,"preload_embeddings.pkl")}' && systemctl restart org.FaceRecognition"])
+        print(f"Deleted face{"s" if len(set(selection))>1 else ""} successfully. The daemon has been restarted and will be opperating in a few seconds.")
+    except subprocess.CalledProcessError:
+        print(f"Failed to delete face{"s" if len(set(selection))>1 else ""}!!! Maybe you don't have root permissions !")
+
+
 if __name__=="__main__":
-    if sys.argv[1]=="add":
-        add_face()
+    if len(sys.argv)>1:
+        if sys.argv[1]=="add":
+            add_face(*sys.argv[2:])
+        elif sys.argv[1]=="remove":
+            remove_face(*sys.argv[2:])
+        elif sys.argv[1]=="check":
+            print(check(os.environ["USER"]))
+    else:
+        print(USAGE)
+    
