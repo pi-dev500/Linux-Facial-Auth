@@ -1,7 +1,10 @@
 # Face Recognition Auth for Linux
 
-⚠️ Not finished yet, the only way to configure is editing scripts.
-⚠️ As every face recognition tools, its precision is not perfect, recommended similarity threshold is more than 0.6 (I use 0.7 by default and the similarity indice with my friend on my bad HP laptop camera is between 0 and 0.5)
+  ⚠️ Not finished yet, the only way to configure is editing scripts.
+
+  ⚠️ As every face recognition tools, its precision is not perfect, recommended similarity threshold is more than 0.6 (I use 0.7 by default and the similarity indice with my friend on my bad HP laptop camera is between 0 and 0.5)
+
+  ⚠️ I made it with my use in mind, and the tool will always work better on intel processors due to openvimo use. It should work on AMD cpus too, but I'm not sure.
 
 ## Installation
 
