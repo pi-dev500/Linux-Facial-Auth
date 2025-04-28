@@ -22,5 +22,28 @@
   At the beginning (or the end) of the PAM configs files that you want to allow face recognition.
 - To add a new face fo current user
   ```
-  /usr/share/face_recognition/facerec.py add
+  /usr/share/face_recognition/facerec.py add [capture path] [face name]
   ```
+- To check if the user who is currently facing the computer is the logged in user:
+  ```
+  /usr/share/face_recognition/facerec.py check
+  ```
+- To remove all faces for the logged user:
+  ```
+  /usr/share/face_recognition/facerec.py remove [all]
+  ```
+- To remove given face names for the user:
+  ```
+  /usr/share/face_recognition/facerec.py remove (face1) (face2) ...
+  ```
+## Features:
+- Ultra-fast recognition: Utilizes OpenVINO for rapid face detection and identification.
+
+- Low resource usage: Optimized for minimal CPU and memory consumption.
+
+- Camera fallback: Automatically switches between color (/dev/video0) and IR (/dev/video2) cameras.
+
+- Image quality checks: Filters out blurry, under-lit, or over-lit images before recognition.
+
+- Multi-user support: Stores separate embedding dictionaries per Linux user, allowing multiple profiles.
+  
