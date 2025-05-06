@@ -5,7 +5,8 @@ import requests
 
 DIR = os.path.dirname(__file__)
 DOWNLOADS = [{"manifest":"https://raw.githubusercontent.com/openvinotoolkit/open_model_zoo/refs/heads/master/models/intel/face-detection-retail-0005/model.yml","files":("FP32/face-detection-retail-0005.xml","FP32/face-detection-retail-0005.bin")},
-    {"manifest":"https://raw.githubusercontent.com/openvinotoolkit/open_model_zoo/refs/heads/master/models/intel/face-reidentification-retail-0095/model.yml", "files":("FP32/face-reidentification-retail-0095.xml","FP32/face-reidentification-retail-0095.bin")}]
+    {"manifest":"https://raw.githubusercontent.com/openvinotoolkit/open_model_zoo/refs/heads/master/models/intel/face-reidentification-retail-0095/model.yml", "files":("FP32/face-reidentification-retail-0095.xml","FP32/face-reidentification-retail-0095.bin")},
+    {"manifest":"https://raw.githubusercontent.com/openvinotoolkit/open_model_zoo/refs/heads/master/models/intel/landmarks-regression-retail-0009/model.yml", "files":("FP32/landmarks-regression-retail-0009.xml","FP32/landmarks-regression-retail-0009.bin")}]
 
 def download(url, dest):
     """Helper to download files"""

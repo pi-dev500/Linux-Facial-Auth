@@ -7,12 +7,15 @@ import os
 import subprocess
 import pickle
 import time
+
 DIR = os.path.dirname(__file__)
-CAP_PATHS=["/dev/video0","/dev/video2"] # fallback mechanism
-CAPTURE_PATH="/dev/video2"
-CONFIDENCE_THRESHOLD=0.7
-IMPROVE_THRESHOLD=0.8
-FIRST_TRAIN_SIZE=25
+CAP_PATHS = ["/dev/video0","/dev/video2"] # fallback mechanism
+CAPTURE_PATH = "/dev/video2"
+RECOGNITION_TIMEOUT = 1.5
+FACE_THRESHOLD = 0.7
+CONFIDENCE_THRESHOLD = 0.7
+IMPROVE_THRESHOLD = 0.8
+FIRST_TRAIN_SIZE = 25
 USAGE = f"""\
 Usage:
     {sys.argv[0]} add [face_name]
@@ -39,7 +42,10 @@ core = Core()
 det_model_path = os.path.join(DIR,"models/face-detection-retail-0005.xml")
 det_model = core.read_model(det_model_path)
 compiled_det = core.compile_model(det_model, "CPU")
-
+# 2. Face Landmarks checking model
+landmarks_model_path = os.path.join(DIR,"models/landmarks-regression-retail-0009.xml")
+landmarks_model = core.read_model(landmarks_model_path)
+compiled_landmarks = core.compile_model(landmarks_model, "CPU")
 # 3. Face Recognition Model
 rec_model_path = os.path.join(DIR,"models/face-reidentification-retail-0095.xml")
 rec_model = core.read_model(rec_model_path)
@@ -124,6 +130,97 @@ def cosine_similarity(a, b):
     b = b.flatten()
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-10)
 
+def get_scaled_ref_landmarks(output_size=(112, 112), zoom=1.0, widen=1.2):
+    """
+    Create reference landmarks scaled to fill the canvas more horizontally.
+    
+    :param output_size: Size of the aligned face image.
+    :param zoom: Overall scaling of the face.
+    :param widen: Horizontal stretch factor (1.0 = no change, >1 = wider face).
+    :return: Transformed reference landmarks.
+    """
+    base = np.array([
+        [38.2946, 51.6963],
+        [73.5318, 51.5014],
+        [56.0252, 71.7366],
+        [41.5493, 92.3655],
+        [70.7299, 92.2041],
+    ], dtype=np.float32)
+
+    center = np.mean(base, axis=0)
+
+    # Apply zoom (both axes)
+    scaled = (base - center) * zoom
+
+    # Widen horizontally
+    scaled[:, 0] *= widen
+
+    # Translate to output center
+    scaled += np.array(output_size) / 2.0
+
+    return scaled
+
+def align_face_with_landmarks(face_bgr, output_size=(128, 128),
+                              ref_landmarks=None):
+    """
+    Aligns a face image using landmarks-regression-retail-0009 and OpenCV.
+
+    Parameters:
+        compiled_landmarks: OpenVINO CompiledModel for landmarks-regression-retail-0009.
+        face_bgr (np.ndarray): Cropped face in BGR format.
+        output_size (tuple): Desired aligned output size (width, height).
+        ref_landmarks (np.ndarray, optional): Custom 5×2 reference points in output coords.
+            If None, default ArcFace reference points are used.
+
+    Returns:
+        np.ndarray: Aligned face image of shape (output_size[1], output_size[0], 3).
+    """
+    # 1. Get model I/O information
+    input_info = compiled_landmarks.inputs[0]
+    output_info = compiled_landmarks.outputs[0]
+    _, _, H, W = input_info.shape
+    input_name = input_info.any_name
+    output_name = output_info.any_name
+
+    # 2. Preprocess: resize to model input (48×48), maintain BGR, pack as NCHW
+    resized = cv2.resize(face_bgr, (W, H))
+    tensor = resized.transpose(2, 0, 1).astype(np.float32)[np.newaxis, :]
+
+    # 3. Inference
+    results = compiled_landmarks({input_name: tensor})
+    flat = results[output_name].flatten()               # shape: (10,)
+    landmarks = flat.reshape((5, 2)).astype(np.float32) # normalized coords
+
+    # 4. Scale to pixel coordinates in original crop
+    h, w = face_bgr.shape[:2]
+    landmarks[:, 0] *= w
+    landmarks[:, 1] *= h
+
+    # 5. Reference points (ArcFace), scaled to output_size
+    if ref_landmarks is None:
+        # ArcFace src points assume 112×112 output
+        ref_landmarks = np.array([
+            [38.2946, 51.6963],
+            [73.5318, 51.5014],
+            [56.0252, 71.7366],
+            [41.5493, 92.3655],
+            [70.7299, 92.2041]
+        ], dtype=np.float32)
+        
+        scale_x = output_size[0] / 112.0
+        scale_y = output_size[1] / 112.0
+        ref_landmarks[:, 0] *= scale_x
+        ref_landmarks[:, 1] *= scale_y
+        ref_landmarks = get_scaled_ref_landmarks((128,128),zoom=1.7)
+
+    # 6. Estimate affine transform
+    tform, _ = cv2.estimateAffinePartial2D(landmarks, ref_landmarks, method=cv2.LMEDS)
+
+    # 7. Warp the original BGR crop to the aligned output
+    aligned = cv2.warpAffine(face_bgr, tform, output_size, flags=cv2.INTER_LINEAR)
+    return aligned
+
+
 #----This part load the face data-----------
 if os.path.exists(os.path.join(DIR,"preload_embeddings.pkl")):
     with open(os.path.join(DIR,"preload_embeddings.pkl"), "rb") as f:
@@ -173,30 +270,34 @@ def check(username,n_try=5):
     Called by the daemon when it receives an auth request
     take as argument the numbers of frames to check, spaced by ~0.1 second
     """
-    available_caps=[c for c in CAP_PATHS]
+    current_cap=0
+    failed_find_attempts=[0 for c in CAP_PATHS]
     if not username in ref_embeddings:
         return "fail"
     if len(ref_embeddings[username])==0:
         return "Error: training base is too small"
-    cap = cv2.VideoCapture(available_caps.pop(0), cv2.CAP_V4L2)
+    cap = cv2.VideoCapture(CAP_PATHS[current_cap], cv2.CAP_V4L2)
     if not cap.isOpened():
         return "Error: Failed to open Webcam"
     attempts_count=0
     ret, frame = cap.read()
-    while attempts_count<n_try:
+    start_time = time.monotonic()
+    while attempts_count<n_try and any(i<11 for i in failed_find_attempts) and time.monotonic()<start_time+RECOGNITION_TIMEOUT:
         did_try=0
+        if failed_find_attempts[current_cap] > 10:
+            current_cap = (current_cap + 1) % len(CAP_PATHS)
+            cap.release()
+            cap = cv2.VideoCapture(CAP_PATHS[current_cap])
+            continue
         ret, frame = cap.read()
         if not ret:
             break
-        
         frame = ensure_bgr(frame)
-        if not check_light(frame):
-            cap.release()
-            if len(available_caps):
-                cap = cv2.VideoCapture(available_caps.pop(), cv2.CAP_V4L2)
-            else:
-                return "fail"
         frame = apply_clahe(frame)
+        if not check_quality(frame):
+            failed_find_attempts[current_cap] += 1
+            continue
+        
         frame = gray_world_correction(frame)
         frame = cv2.filter2D(frame,-1,np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
         # 1. Detect faces using the detection model
@@ -208,7 +309,7 @@ def check(username,n_try=5):
         # Run detection
         det_result = compiled_det([input_blob_det])[compiled_det.output(0)]
         # Parse detection output (update parsing based on your model’s output format)
-        boxes = parse_detections(det_result, frame.shape, conf_threshold=0.5)
+        boxes = parse_detections(det_result, frame.shape, conf_threshold=FACE_THRESHOLD)
         for (xmin, ymin, xmax, ymax, conf) in boxes:
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
@@ -216,7 +317,7 @@ def check(username,n_try=5):
                 continue
             did_try=1
             # 3. Run recognition on the face crop
-            rec_face = cv2.resize(face_crop, (128, 128))
+            rec_face=align_face_with_landmarks(face_crop)
             rec_face = gray_world_correction(rec_face)
             rec_input = rec_face.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
             rec_embedding = compiled_rec([rec_input])[compiled_rec.output(0)]
@@ -232,12 +333,12 @@ def check(username,n_try=5):
                         with open(os.path.join(DIR,"preload_embeddings.pkl"), "wb") as f:
                             pickle.dump(ref_embeddings, f)
                     return "pass"
+        if did_try == 0: # if there were no boundings of a sufficient quality, then this try wasn't good for this cap
+            failed_find_attempts[current_cap] += 1
         attempts_count+=did_try
-        time.sleep(0.05)
+        time.sleep(0.1)
     cap.release()
     return "fail"
-    
-
     
 def add_face(cap_path=...,face_name=...):
     """
@@ -282,17 +383,22 @@ def add_face(cap_path=...,face_name=...):
         # Run detection
         det_result = compiled_det([input_blob_det])[compiled_det.output(0)]
         # Parse detection output (update parsing based on your model’s output format)
-        boxes = parse_detections(det_result, frame.shape, conf_threshold=0.5)
+        boxes = parse_detections(det_result, frame.shape, conf_threshold=FACE_THRESHOLD)
         for (xmin, ymin, xmax, ymax, conf) in boxes:
+            xmin, ymin = xmin - 10, ymin - 10 # Leave some margin to get a usable result after re-alignment 
+            xmax, ymax = xmax + 10, ymax + 10
             # Draw box
-            cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
+            cv2.rectangle(frame, (xmin-2, ymin-2), (xmax+2, ymax+2), (0, 255, 0), 2)
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
             if not check_quality(face_crop):
-                continue
-            # 3. Run recognition on the face crop
-            rec_face = cv2.resize(face_crop, (128, 128))
+                continue # skip unusable faces crop
+            # Vertically align th eface crop using landmarks detection
+            rec_face=align_face_with_landmarks(face_crop)
+            if not check_quality(face_crop):
+                continue # skip unusable aligned faces crop
             rec_face = gray_world_correction(rec_face)
+            # 3. Run recognition on the face crop
             rec_input = rec_face.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
             rec_embedding = compiled_rec([rec_input])[compiled_rec.output(0)]
             # Compare with every reference embedding
@@ -300,7 +406,7 @@ def add_face(cap_path=...,face_name=...):
             face_preview = cv2.resize(rec_face, (128, 128))
             cv2.imshow("Face Crop", rec_face)
             # You can adjust your threshold accordingly
-            if (all([0.4 < sim < IMPROVE_THRESHOLD for sim in similarities]) and len(new_face)<FIRST_TRAIN_SIZE) or len(new_face)==0: # use as training image
+            if (all([0.2 < sim < IMPROVE_THRESHOLD for sim in similarities]) and len(new_face)<FIRST_TRAIN_SIZE) or len(new_face)==0: # use as training image
                 new_face.append(rec_embedding)
                 print("",len(new_face),"/",FIRST_TRAIN_SIZE,"training frames saved...", end="\r")
         cv2.imshow("Webcam - Press 's' to save face", frame)
