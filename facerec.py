@@ -15,7 +15,7 @@ RECOGNITION_TIMEOUT = 1.5
 FACE_THRESHOLD = 0.7
 CONFIDENCE_THRESHOLD = 0.7
 IMPROVE_THRESHOLD = 0.8
-FIRST_TRAIN_SIZE = 25
+FIRST_TRAIN_SIZE = 50
 USAGE = f"""\
 Usage:
     {sys.argv[0]} add [face_name]
@@ -297,6 +297,8 @@ def check(username,n_try=5):
         if not check_quality(frame):
             failed_find_attempts[current_cap] += 1
             continue
+        else:
+            failed_find_attempts[current_cap] //= 2
         
         frame = gray_world_correction(frame)
         frame = cv2.filter2D(frame,-1,np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
