@@ -1,0 +1,25 @@
+option('pam',
+    description: 'Build the fprintd PAM module',
+    type: 'boolean',
+    value: true)
+option('man',
+    description: 'Generate the man files',
+    type: 'boolean',
+    value: false)
+option('systemd',
+    description: 'Install system service files',
+    type: 'boolean',
+    value: false)
+option('systemd_system_unit_dir',
+    description: 'Directory for systemd service files',
+    type: 'string')
+option('dbus_service_dir',
+    description: 'Directory for dbus service files',
+    type: 'string')
+option('pam_modules_dir',
+    description: 'Directory for PAM modules',
+    type: 'string')
+option('gtk_doc',
+    type: 'boolean',
+    value: false,
+    description: 'Use gtk-doc to build documentation')

@@ -1,0 +1,10 @@
+{
+  "targets": {
+    "/home/coco/Documents/test c /pam-fprint-grosshack/build/pam/pam_fprintd_grosshack.so": {
+      "destination": "{pam_modules_dir}/pam_fprintd_grosshack.so",
+      "tag": "runtime",
+      "subproject": null,
+      "install_rpath": null
+    }
+  }
+}

@@ -1,0 +1,8 @@
+[
+  {
+    "directory": "/home/coco/Documents/test c /pam-fprint-grosshack/build",
+    "command": "cc -Ipam/pam_fprintd_grosshack.so.p -Ipam -I../pam -I. -I.. -fdiagnostics-color=always -D_FILE_OFFSET_BITS=64 -Wall -Winvalid-pch -Wextra -Wpedantic -std=gnu99 -fno-strict-aliasing -Wcast-align -Werror=address -Werror=array-bounds -Werror=empty-body -Werror=implicit -Werror=init-self -Werror=int-to-pointer-cast -Werror=main -Werror=missing-braces -Werror=nonnull -Werror=pointer-to-int-cast -Werror=redundant-decls -Werror=return-type -Werror=sequence-point -Werror=trigraphs -Werror=write-strings -Wformat-nonliteral -Wformat-security -Wformat=2 -Wignored-qualifiers -Wimplicit-function-declaration -Wlogical-op -Wmissing-declarations -Wmissing-format-attribute -Wmissing-include-dirs -Wmissing-noreturn -Wmissing-prototypes -Wnested-externs -Wold-style-definition -Wpointer-arith -Wshadow -Wstrict-prototypes -Wtype-limits -Wundef -Wunused -Wno-unused-parameter -Wno-pedantic -DGLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_56 -DGLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_2_56 -fPIC -pthread '-DLOCALEDIR=\"/usr/share/locale\"' -MD -MQ pam/pam_fprintd_grosshack.so.p/pam_fprintd.c.o -MF pam/pam_fprintd_grosshack.so.p/pam_fprintd.c.o.d -o pam/pam_fprintd_grosshack.so.p/pam_fprintd.c.o -c ../pam/pam_fprintd.c",
+    "file": "../pam/pam_fprintd.c",
+    "output": "pam/pam_fprintd_grosshack.so.p/pam_fprintd.c.o"
+  }
+]

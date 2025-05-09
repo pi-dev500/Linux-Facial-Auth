@@ -1,0 +1,952 @@
+Build started at 2025-05-07T11:04:16.884074
+Main binary: /usr/bin/python
+Build Options: -Db_pie=true -Dpython.bytecompile=1 -Dpam_modules_dir=/usr/lib/security -Dprefix=/usr -Dlibexecdir=lib -Dsbindir=bin -Dauto_features=enabled -Dbuildtype=plain -Dwrap_mode=nodownload
+Python system: Linux
+The Meson build system
+Version: 1.8.0
+Source dir: /home/coco/Documents/test c /pam-fprint-grosshack
+Build dir: /home/coco/Documents/test c /pam-fprint-grosshack/build
+Build type: native build
+Project name: fprintd
+Project version: 1.94.2
+-----------
+Detecting compiler via: `cc --version` -> 0
+stdout:
+cc (GCC) 15.1.1 20250425
+Copyright © 2025 Free Software Foundation, Inc.
+Ce logiciel est un logiciel libre; voir les sources pour les conditions de copie.  Il n'y a
+AUCUNE GARANTIE, pas même pour la COMMERCIALISATION ni L'ADÉQUATION À UNE TÂCHE PARTICULIÈRE.
+-----------
+Running command: -cpp -x c -E -dM -
+-----
+-----------
+Detecting linker via: `cc -Wl,--version` -> 0
+stdout:
+GNU ld (GNU Binutils) 2.44.0
+Copyright (C) 2025 Free Software Foundation, Inc.
+Ce logiciel est libre; si vous le redistribuez, vous devez le faire selon les termes
+de la licence GNU General Public License version 3 ou postérieure selon votre besoin.
+Ce logiciel n'est couvert par aucune GARANTIE.
+-----------
+stderr:
+collect2 version 15.1.1 20250425
+/usr/bin/ld -plugin /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/lto-wrapper -plugin-opt=-fresolution=/tmp/ccw062NF.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr --hash-style=gnu -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/Scrt1.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crti.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtbeginS.o -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1 -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib -L/lib/../lib -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../.. -L/lib -L/usr/lib --version -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtendS.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crtn.o
+-----------
+Sanity testing C compiler: cc
+Is cross compiler: False.
+Sanity check compiler command line: cc sanitycheckc.c -o sanitycheckc.exe -D_FILE_OFFSET_BITS=64
+Sanity check compile stdout:
+
+-----
+Sanity check compile stderr:
+
+-----
+Running test binary command:  '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/sanitycheckc.exe'
+C compiler for the host machine: cc (gcc 15.1.1 "cc (GCC) 15.1.1 20250425")
+C linker for the host machine: cc ld.bfd 2.44.0
+-----------
+Detecting archiver via: `gcc-ar --version` -> 0
+stdout:
+GNU ar (GNU Binutils) 2.44.0
+Copyright © 2025 Free Software Foundation, Inc.
+Ce logiciel est libre; vous pouvez le redistribuer selon les termes de la
+version 3 de la licence GNU General Public License ou (à votre discrétion)
+de toute version ultérieure. Aucune garantie n'est donnée sur ce programme.
+-----------
+-----------
+Detecting compiler via: `cc --version` -> 0
+stdout:
+cc (GCC) 15.1.1 20250425
+Copyright © 2025 Free Software Foundation, Inc.
+Ce logiciel est un logiciel libre; voir les sources pour les conditions de copie.  Il n'y a
+AUCUNE GARANTIE, pas même pour la COMMERCIALISATION ni L'ADÉQUATION À UNE TÂCHE PARTICULIÈRE.
+-----------
+Running command: -cpp -x c -E -dM -
+-----
+-----------
+Detecting linker via: `cc -Wl,--version` -> 0
+stdout:
+GNU ld (GNU Binutils) 2.44.0
+Copyright (C) 2025 Free Software Foundation, Inc.
+Ce logiciel est libre; si vous le redistribuez, vous devez le faire selon les termes
+de la licence GNU General Public License version 3 ou postérieure selon votre besoin.
+Ce logiciel n'est couvert par aucune GARANTIE.
+-----------
+stderr:
+collect2 version 15.1.1 20250425
+/usr/bin/ld -plugin /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/lto-wrapper -plugin-opt=-fresolution=/tmp/ccwPBvk5.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr --hash-style=gnu -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/Scrt1.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crti.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtbeginS.o -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1 -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib -L/lib/../lib -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../.. -L/lib -L/usr/lib --version -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtendS.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crtn.o
+-----------
+Sanity testing C compiler: cc
+Is cross compiler: False.
+Sanity check compiler command line: cc sanitycheckc.c -o sanitycheckc.exe -D_FILE_OFFSET_BITS=64
+Sanity check compile stdout:
+
+-----
+Sanity check compile stderr:
+
+-----
+Running test binary command:  '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/sanitycheckc.exe'
+C compiler for the build machine: cc (gcc 15.1.1 "cc (GCC) 15.1.1 20250425")
+C linker for the build machine: cc ld.bfd 2.44.0
+-----------
+Detecting archiver via: `gcc-ar --version` -> 0
+stdout:
+GNU ar (GNU Binutils) 2.44.0
+Copyright © 2025 Free Software Foundation, Inc.
+Ce logiciel est libre; vous pouvez le redistribuer selon les termes de la
+version 3 de la licence GNU General Public License ou (à votre discrétion)
+de toute version ultérieure. Aucune garantie n'est donnée sur ce programme.
+-----------
+Build machine cpu family: x86_64
+Build machine cpu: x86_64
+Host machine cpu family: x86_64
+Host machine cpu: x86_64
+Target machine cpu family: x86_64
+Target machine cpu: x86_64
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp169g7f51
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp169g7f51/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp169g7f51/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -fno-strict-aliasing` -> 0
+Compiler for C supports arguments -fno-strict-aliasing: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp5fp4qlvj
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp5fp4qlvj/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp5fp4qlvj/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wcast-align` -> 0
+Compiler for C supports arguments -Wcast-align: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmphw3ufos2
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmphw3ufos2/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmphw3ufos2/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Werror=address` -> 0
+Compiler for C supports arguments -Werror=address: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpt6ivgtu1
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpt6ivgtu1/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpt6ivgtu1/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Werror=array-bounds` -> 0
+Compiler for C supports arguments -Werror=array-bounds: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp1rz9d5nn
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp1rz9d5nn/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp1rz9d5nn/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Werror=empty-body` -> 0
+Compiler for C supports arguments -Werror=empty-body: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp1opzau31
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp1opzau31/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp1opzau31/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Werror=implicit` -> 0
+Compiler for C supports arguments -Werror=implicit: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpgyv2j95s
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpgyv2j95s/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpgyv2j95s/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Werror=init-self` -> 0
+Compiler for C supports arguments -Werror=init-self: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpv822v19h
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpv822v19h/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpv822v19h/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Werror=int-to-pointer-cast` -> 0
+Compiler for C supports arguments -Werror=int-to-pointer-cast: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp8p4wbg_t
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp8p4wbg_t/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp8p4wbg_t/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Werror=main` -> 0
+Compiler for C supports arguments -Werror=main: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp7m2dwjgb
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp7m2dwjgb/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp7m2dwjgb/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Werror=missing-braces` -> 0
+Compiler for C supports arguments -Werror=missing-braces: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpu9ys62np
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpu9ys62np/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpu9ys62np/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Werror=nonnull` -> 0
+Compiler for C supports arguments -Werror=nonnull: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmph6w9sh6u
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmph6w9sh6u/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmph6w9sh6u/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Werror=pointer-to-int-cast` -> 0
+Compiler for C supports arguments -Werror=pointer-to-int-cast: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpvk1mg1a2
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpvk1mg1a2/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpvk1mg1a2/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Werror=redundant-decls` -> 0
+Compiler for C supports arguments -Werror=redundant-decls: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpqudwimgo
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpqudwimgo/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpqudwimgo/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Werror=return-type` -> 0
+Compiler for C supports arguments -Werror=return-type: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpyvj4_pa7
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpyvj4_pa7/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpyvj4_pa7/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Werror=sequence-point` -> 0
+Compiler for C supports arguments -Werror=sequence-point: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpcq8ab0fa
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpcq8ab0fa/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpcq8ab0fa/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Werror=trigraphs` -> 0
+Compiler for C supports arguments -Werror=trigraphs: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpbjlv0gka
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpbjlv0gka/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpbjlv0gka/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Werror=write-strings` -> 0
+Compiler for C supports arguments -Werror=write-strings: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp48czvmka
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp48czvmka/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp48czvmka/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wformat-nonliteral` -> 0
+stderr:
+cc1: warning: '-Wformat-nonliteral' ignored without '-Wformat' [-Wformat-nonliteral]
+-----------
+Compiler for C supports arguments -Wformat-nonliteral: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpsuos_pg2
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpsuos_pg2/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpsuos_pg2/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wformat-security` -> 0
+stderr:
+cc1: warning: '-Wformat-security' ignored without '-Wformat' [-Wformat-security]
+-----------
+Compiler for C supports arguments -Wformat-security: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpxbxchufc
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpxbxchufc/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpxbxchufc/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wformat=2` -> 0
+Compiler for C supports arguments -Wformat=2: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp6squ_a2y
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp6squ_a2y/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp6squ_a2y/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wignored-qualifiers` -> 0
+Compiler for C supports arguments -Wignored-qualifiers: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpidusvyyl
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpidusvyyl/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpidusvyyl/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wimplicit-function-declaration` -> 0
+Compiler for C supports arguments -Wimplicit-function-declaration: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpbi441kuq
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpbi441kuq/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpbi441kuq/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wlogical-op` -> 0
+Compiler for C supports arguments -Wlogical-op: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp7nfayp32
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp7nfayp32/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp7nfayp32/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wmissing-declarations` -> 0
+Compiler for C supports arguments -Wmissing-declarations: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpl6um0yq_
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpl6um0yq_/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpl6um0yq_/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wmissing-format-attribute` -> 0
+Compiler for C supports arguments -Wmissing-format-attribute: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpuz64w22w
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpuz64w22w/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpuz64w22w/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wmissing-include-dirs` -> 0
+Compiler for C supports arguments -Wmissing-include-dirs: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpvvvowiq0
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpvvvowiq0/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpvvvowiq0/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wmissing-noreturn` -> 0
+Compiler for C supports arguments -Wmissing-noreturn: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpdnlbshz4
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpdnlbshz4/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpdnlbshz4/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wmissing-prototypes` -> 0
+Compiler for C supports arguments -Wmissing-prototypes: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpga_tp9cb
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpga_tp9cb/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpga_tp9cb/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wnested-externs` -> 0
+Compiler for C supports arguments -Wnested-externs: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpgdfhufnl
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpgdfhufnl/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpgdfhufnl/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wold-style-definition` -> 0
+Compiler for C supports arguments -Wold-style-definition: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpcf1v3hja
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpcf1v3hja/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpcf1v3hja/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wpointer-arith` -> 0
+Compiler for C supports arguments -Wpointer-arith: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpcxnux4cn
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpcxnux4cn/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpcxnux4cn/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wshadow` -> 0
+Compiler for C supports arguments -Wshadow: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpqyh9qg8p
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpqyh9qg8p/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpqyh9qg8p/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wstrict-prototypes` -> 0
+Compiler for C supports arguments -Wstrict-prototypes: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp2ri_bm_e
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp2ri_bm_e/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmp2ri_bm_e/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wtype-limits` -> 0
+Compiler for C supports arguments -Wtype-limits: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpzs32zv5n
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpzs32zv5n/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpzs32zv5n/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wundef` -> 0
+Compiler for C supports arguments -Wundef: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmplrmpjeq5
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmplrmpjeq5/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmplrmpjeq5/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wunused` -> 0
+Compiler for C supports arguments -Wunused: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpa9c05wpm
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpa9c05wpm/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpa9c05wpm/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wunused-parameter -Wno-unused-parameter` -> 0
+Compiler for C supports arguments -Wno-unused-parameter: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpyn978n9i
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpyn978n9i/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpyn978n9i/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -Wpedantic -Wno-pedantic` -> 0
+Compiler for C supports arguments -Wno-pedantic: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpyp0j9l3y
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpyp0j9l3y/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpyp0j9l3y/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -DGLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_56` -> 0
+Compiler for C supports arguments -DGLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_56: YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpzyzzzrw4
+Code:
+extern int i;
+int i;
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpzyzzzrw4/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpzyzzzrw4/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 -DGLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_2_56` -> 0
+Compiler for C supports arguments -DGLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_2_56: YES 
+Pkg-config binary missing from cross or native file, or env var undefined.
+Trying a default Pkg-config fallback at pkg-config
+Found pkg-config: YES (/usr/bin/pkg-config) 2.4.3
+Determining dependency 'glib-2.0' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion glib-2.0` -> 0
+stdout:
+2.84.1
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags glib-2.0` -> 0
+stdout:
+-I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -pthread
+-----------
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs glib-2.0` -> 0
+stdout:
+-L/usr/lib -lglib-2.0
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs glib-2.0` -> 0
+stdout:
+-lglib-2.0
+-----------
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpwevp220u
+Code:
+
+        #include<stddef.h>
+        #include<stdio.h>
+        int main(void) {
+            printf("%ld\n", (long)(sizeof(void *)));
+            return 0;
+        }
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpwevp220u/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpwevp220u/output.exe' -D_FILE_OFFSET_BITS=64 -O0` -> 0
+Program stdout:
+
+8
+
+Program stderr:
+
+
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpdjhqcibx
+Code:
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpdjhqcibx/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpdjhqcibx/output.obj' -c -D_FILE_OFFSET_BITS=64 -O0 --print-search-dirs` -> 0
+stdout:
+install: /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/
+programs: =/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../x86_64-pc-linux-gnu/bin/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../x86_64-pc-linux-gnu/bin/
+libraries: =/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../x86_64-pc-linux-gnu/lib/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../x86_64-pc-linux-gnu/lib/../lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/:/lib/x86_64-pc-linux-gnu/15.1.1/:/lib/../lib/:/usr/lib/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../x86_64-pc-linux-gnu/lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../:/lib/:/usr/lib/
+-----------
+Run-time dependency glib-2.0 found: YES 2.84.1
+Determining dependency 'gio-2.0' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion gio-2.0` -> 0
+stdout:
+2.84.1
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags gio-2.0` -> 0
+stdout:
+-I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/libmount -I/usr/include/blkid -I/usr/include/sysprof-6 -pthread
+-----------
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs gio-2.0` -> 0
+stdout:
+-L/usr/lib -lgio-2.0 -lgobject-2.0 -lglib-2.0
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs gio-2.0` -> 0
+stdout:
+-lgio-2.0 -lgobject-2.0 -lglib-2.0
+-----------
+Run-time dependency gio-2.0 found: YES 2.84.1
+Determining dependency 'gio-unix-2.0' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion gio-unix-2.0` -> 0
+stdout:
+2.84.1
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags gio-unix-2.0` -> 0
+stdout:
+-I/usr/include/gio-unix-2.0 -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/libmount -I/usr/include/blkid -I/usr/include/sysprof-6 -pthread
+-----------
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs gio-unix-2.0` -> 0
+stdout:
+-L/usr/lib -lgio-2.0 -lgobject-2.0 -lglib-2.0
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs gio-unix-2.0` -> 0
+stdout:
+-lgio-2.0 -lgobject-2.0 -lglib-2.0
+-----------
+Run-time dependency gio-unix-2.0 found: YES 2.84.1
+Determining dependency 'gmodule-2.0' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion gmodule-2.0` -> 0
+stdout:
+2.84.1
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags gmodule-2.0` -> 0
+stdout:
+-I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -pthread
+-----------
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs gmodule-2.0` -> 0
+stdout:
+-Wl,--export-dynamic -L/usr/lib -lgmodule-2.0 -pthread -lglib-2.0
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs gmodule-2.0` -> 0
+stdout:
+-Wl,--export-dynamic -lgmodule-2.0 -pthread -lglib-2.0
+-----------
+Run-time dependency gmodule-2.0 found: YES 2.84.1
+Determining dependency 'libfprint-2' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion libfprint-2` -> 0
+stdout:
+1.94.9
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags libfprint-2` -> 0
+stdout:
+-I/usr/include/libfprint-2 -I/usr/include/gio-unix-2.0 -I/usr/include/libmount -I/usr/include/blkid -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -pthread
+-----------
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs libfprint-2` -> 0
+stdout:
+-L/usr/lib -lfprint-2 -lgio-2.0 -lgobject-2.0 -lglib-2.0
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs libfprint-2` -> 0
+stdout:
+-lfprint-2 -lgio-2.0 -lgobject-2.0 -lglib-2.0
+-----------
+Run-time dependency libfprint-2 found: YES 1.94.9
+Determining dependency 'polkit-gobject-1' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion polkit-gobject-1` -> 0
+stdout:
+126
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags polkit-gobject-1` -> 0
+stdout:
+-I/usr/include/polkit-1 -I/usr/include/gio-unix-2.0 -I/usr/include/libmount -I/usr/include/blkid -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -pthread
+-----------
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs polkit-gobject-1` -> 0
+stdout:
+-L/usr/lib -lpolkit-gobject-1 -lgio-2.0 -lgobject-2.0 -lglib-2.0
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs polkit-gobject-1` -> 0
+stdout:
+-lpolkit-gobject-1 -lgio-2.0 -lgobject-2.0 -lglib-2.0
+-----------
+Run-time dependency polkit-gobject-1 found: YES 126
+Determining dependency 'dbus-1' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion dbus-1` -> 0
+stdout:
+1.16.2
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags dbus-1` -> 0
+stdout:
+-I/usr/include/dbus-1.0 -I/usr/lib/dbus-1.0/include
+-----------
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs dbus-1` -> 0
+stdout:
+-L/usr/lib -ldbus-1
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs dbus-1` -> 0
+stdout:
+-ldbus-1
+-----------
+Run-time dependency dbus-1 found: YES 1.16.2
+Determining dependency 'libsystemd' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion libsystemd` -> 0
+stdout:
+257
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags libsystemd` -> 0
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs libsystemd` -> 0
+stdout:
+-L/usr/lib -lsystemd
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs libsystemd` -> 0
+stdout:
+-lsystemd
+-----------
+Run-time dependency libsystemd found: YES 257
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpjym0qthw
+Code:
+
+        #ifdef __has_include
+         #if !__has_include("security/pam_modules.h")
+          #error "Header 'security/pam_modules.h' could not be found"
+         #endif
+        #else
+         #include <security/pam_modules.h>
+        #endif
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpjym0qthw/testfile.c' -E -P -D_FILE_OFFSET_BITS=64 -P -O0 -std=gnu99` -> 0
+Has header "security/pam_modules.h" : YES 
+Running compile:
+Working directory:  /home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpf3032m88
+Code:
+int main(void) { return 0; }
+
+-----------
+Command line: `cc '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpf3032m88/testfile.c' -o '/home/coco/Documents/test c /pam-fprint-grosshack/build/meson-private/tmpf3032m88/output.exe' -D_FILE_OFFSET_BITS=64 -O0 -lpam -Wl,--allow-shlib-undefined` -> 0
+Library pam found: YES
+Run-time dependency threads found: YES
+Program pod2man found: YES (/usr/bin/core_perl/pod2man)
+Program xsltproc found: YES (/usr/bin/xsltproc)
+Determining dependency 'systemd' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion systemd` -> 0
+stdout:
+257
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags systemd` -> 0
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs systemd` -> 0
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs systemd` -> 0
+Run-time dependency systemd found: YES 257
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --variable=systemdsystemunitdir systemd` -> 0
+stdout:
+/usr/lib/systemd/system
+-----------
+Got pkg-config variable systemdsystemunitdir : /usr/lib/systemd/system
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --variable=system_bus_services_dir dbus-1` -> 0
+stdout:
+/usr/share/dbus-1/system-services
+-----------
+Got pkg-config variable system_bus_services_dir : /usr/share/dbus-1/system-services
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --variable=interfaces_dir dbus-1` -> 0
+stdout:
+/usr/share/dbus-1/interfaces
+-----------
+Got pkg-config variable interfaces_dir : /usr/share/dbus-1/interfaces
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --variable=datadir dbus-1` -> 0
+stdout:
+/usr/share
+-----------
+Got pkg-config variable datadir : /usr/share
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --variable=policydir polkit-gobject-1` -> 0
+stdout:
+/usr/share/polkit-1/actions
+-----------
+Got pkg-config variable policydir : /usr/share/polkit-1/actions
+Determining dependency 'pam_wrapper' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion pam_wrapper` -> 0
+stdout:
+1.1.7
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags pam_wrapper` -> 0
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs pam_wrapper` -> 0
+stdout:
+/usr/lib/libpam_wrapper.so
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs pam_wrapper` -> 0
+stdout:
+/usr/lib/libpam_wrapper.so
+-----------
+Run-time dependency pam_wrapper found: YES 1.1.7
+Program xmllint found: YES (/usr/bin/xmllint)
+Program python3 found: YES (/usr/bin/python3)
+WARNING: You should add the boolean check kwarg to the run_command call.
+         It currently defaults to false,
+         but it will default to true in meson 2.0.
+         See also: https://github.com/mesonbuild/meson/issues/9300
+Running command: /usr/bin/python3 -c 'import cairo'
+--- stdout ---
+
+--- stderr ---
+
+
+Running command: /usr/bin/python3 -c 'import dbus'
+--- stdout ---
+
+--- stderr ---
+
+
+Running command: /usr/bin/python3 -c 'import dbusmock'
+--- stdout ---
+
+--- stderr ---
+
+
+Running command: /usr/bin/python3 -c 'import gi'
+--- stdout ---
+
+--- stderr ---
+
+
+Running command: /usr/bin/python3 -c 'import gi.repository.FPrint'
+--- stdout ---
+
+--- stderr ---
+<string>:1: PyGIWarning: FPrint was imported without specifying a version first. Use gi.require_version('FPrint', '2.0') before import to ensure that the right version gets loaded.
+
+
+Running command: /usr/bin/python3 -c 'import pypamtest'
+--- stdout ---
+
+--- stderr ---
+
+
+Configuring config.h using configuration
+pam/meson.build:25: DEPRECATION: Project uses feature that was always broken, and is now deprecated since '1.3.0': str.format: Value other than strings, integers, bools, options, dictionaries and lists thereof..
+Message: 
+System paths:
+  prefix: /usr
+  fprintd daemon directory: /usr/lib
+  fprintd modules directory: /usr/lib/fprintd/modules
+  fprintd prints storage directory: /var/lib/fprint
+  DBus configuration directory: /usr/share/dbus-1/system.d
+  DBus service directory: /usr/share/dbus-1/system-services
+  DBus interfaces directory: /usr/share/dbus-1/interfaces
+  Polkit policy directory: /usr/share/polkit-1/actions
+  Systemd service directory: /usr/lib/systemd/system
+  PAM module directory: /usr/lib/security
+
+Optional features:
+
+  PAM module: true
+  Manuals: false
+  GTK Doc: false
+  XML Linter true
+
+Test setup:
+
+
+Build targets in project: 1
+NOTICE: Future-deprecated features used:
+ * 0.56.0: {'dependency.get_pkgconfig_variable', 'meson.source_root'}
+WARNING: Broken features used:
+ * 1.3.0: {'str.format: Value other than strings, integers, bools, options, dictionaries and lists thereof.'}
+
+fprintd 1.94.2
+
+  User defined options
+    auto_features     : enabled
+    b_pie             : true
+    buildtype         : plain
+    libexecdir        : lib
+    pam_modules_dir   : /usr/lib/security
+    prefix            : /usr
+    python.bytecompile: 1
+    sbindir           : bin
+    wrap_mode         : nodownload
+
+Found ninja-1.12.1 at /usr/bin/ninja

@@ -1,0 +1,14 @@
+/* Define to the Gettext package name */
+#mesondefine GETTEXT_PACKAGE
+
+/* Version number of package */
+#mesondefine PACKAGE_VERSION
+
+/* Where the configuration file will be located */
+#mesondefine SYSCONFDIR
+
+/* Define to the version of this package. */
+#mesondefine VERSION
+
+/* Whether current polkit version supports autopointers */
+#mesondefine POLKIT_HAS_AUTOPOINTERS

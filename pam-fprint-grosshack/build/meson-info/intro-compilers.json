@@ -1,0 +1,38 @@
+{
+  "host": {
+    "c": {
+      "id": "gcc",
+      "exelist": [
+        "cc"
+      ],
+      "linker_exelist": [
+        "cc"
+      ],
+      "file_suffixes": [
+        "c"
+      ],
+      "default_suffix": "c",
+      "version": "15.1.1",
+      "full_version": "cc (GCC) 15.1.1 20250425",
+      "linker_id": "ld.bfd"
+    }
+  },
+  "build": {
+    "c": {
+      "id": "gcc",
+      "exelist": [
+        "cc"
+      ],
+      "linker_exelist": [
+        "cc"
+      ],
+      "file_suffixes": [
+        "c"
+      ],
+      "default_suffix": "c",
+      "version": "15.1.1",
+      "full_version": "cc (GCC) 15.1.1 20250425",
+      "linker_id": "ld.bfd"
+    }
+  }
+}
