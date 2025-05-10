@@ -417,7 +417,7 @@ def check(username,n_try=5):
             break
         frame = ensure_bgr(frame)
         #frame = apply_clahe(frame)
-        if not image_quality_score(frame)>0.2:
+        if not image_quality_score(frame)>0.3:
             failed_find_attempts[current_cap] += 1
             continue
         else:
@@ -439,8 +439,8 @@ def check(username,n_try=5):
         for (xmin, ymin, xmax, ymax, conf) in boxes:
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
-            """if not check_quality(face_crop):
-                continue"""
+            if not image_quality_score(face_crop) > 0.3:
+                continue
             did_try=1
             # 3. Run recognition on the face crop
             #rec_face = apply_clahe(face_crop)
@@ -500,10 +500,6 @@ def add_face(cap_path=...,face_name=...):
             break
         frame = ensure_bgr(frame)
         
-        #frame = gray_world_correction(frame)
-        #frame = apply_clahe(frame)
-        print(image_quality_score(frame))
-        #frame = cv2.filter2D(frame,-1,np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
         # 1. Detect faces using the detection model
         # Preprocess frame for detection (resize to model's expected input, e.g., 300x300)
         det_input_size = (300, 300)  # Adjust if needed
@@ -521,15 +517,11 @@ def add_face(cap_path=...,face_name=...):
             cv2.rectangle(frame, (xmin-2, ymin-2), (xmax+2, ymax+2), (0, 255, 0), 2)
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
-            if not image_quality_score(face_crop)>0.2:
+            if not image_quality_score(face_crop)>0.3:
                 continue # skip unusable faces crop
-            #face_crop = cv2.cvtColor(preprocess_face_image(face_crop), cv2.COLOR_GRAY2BGR)
             # Vertically align the face crop using landmarks detection
             rec_face = stretch_contrast(face_crop)
-            #rec_face = apply_clahe(rec_face)
             rec_face=align_face_with_landmarks(face_crop)
-            """if not check_quality(rec_face):
-                continue # skip unusable aligned faces crop"""
             
             # 3. Run recognition on the face crop
             rec_input = rec_face.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
