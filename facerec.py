@@ -65,6 +65,7 @@ def ensure_bgr(frame):
             return cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
         elif frame.shape[2] == 3:
             # Already BGR
+
             return frame
         elif frame.shape[2] == 4:
             # BGRA -> BGR (remove alpha channel)
@@ -73,6 +74,22 @@ def ensure_bgr(frame):
             raise ValueError(f"Unsupported number of channels: {frame.shape[2]}")
     else:
         raise ValueError("Unsupported frame shape")
+
+def stretch_contrast(img_bgr):
+    # Split channels
+    channels = cv2.split(img_bgr)
+    stretched = []
+
+    for ch in channels:
+        min_val, max_val = np.min(ch), np.max(ch)
+        # Avoid divide-by-zero
+        if max_val > min_val:
+            norm = ((ch - min_val) * 255.0 / (max_val - min_val)).astype(np.uint8)
+        else:
+            norm = ch
+        stretched.append(norm)
+
+    return cv2.merge(stretched)
 
 # Image improvements
 def gray_world_correction(img):
@@ -91,34 +108,138 @@ def gray_world_correction(img):
 
     return img.astype(np.uint8)
 
-def apply_clahe(img):
-    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
+def apply_gamma(img, gamma):
+    """Apply gamma correction to an image (input range 0-255)"""
+    # Build lookup table
+    inv_gamma = 1.0 / gamma
+    table = np.array([((i / 255.0) ** inv_gamma) * 255
+                     for i in np.arange(0, 256)]).astype("uint8")
+    
+    # Apply gamma correction
+    return cv2.LUT(img, table)
 
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    cl = clahe.apply(l)
+def adaptive_face_preprocessing(img_bgr, 
+                               auto_gamma=True, 
+                               edge_weight=0.3,
+                               ir_mode=False):
+    """
+    Enhanced pipeline with:
+    1. Dynamic gamma correction
+    2. Adaptive histogram equalization
+    3. Edge-aware normalization
+    4. Cross-camera compatibility
+    """
+    img_bgr = stretch_contrast(img_bgr)
+    # Convert to grayscale/Y-channel processing
+    if ir_mode:
+        # IR camera-specific processing
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
+    else:
+        # RGB camera processing
+        yuv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2YUV)
+        gray = yuv[:,:,0]
 
-    merged = cv2.merge((cl, a, b))
-    enhanced = cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
-    return enhanced
+    # 1. Dynamic gamma correction
+    if auto_gamma:
+        gamma = calculate_adaptive_gamma(gray)
+    else:
+        gamma = 0.8 if ir_mode else 1.2  # Baseline values
+    
+    gamma_corrected = apply_gamma(gray, gamma)
 
-def is_blurry(image, threshold=100.0):
-    laplacian_var = cv2.Laplacian(image, cv2.CV_64F).var()
-    return laplacian_var < threshold
+    # 2. Adaptive histogram equalization
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    equalized = clahe.apply(gamma_corrected)
 
-def check_quality(image):
-    to_check = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    if image.size == 0:
-        return False
-    if is_blurry(to_check):
-        return False
-    # avoid light problems
-    if to_check.mean() < 75 or to_check.mean() > 180:
-        return False
-    # better contrast
-    if to_check.std() <20:
-        return False
-    return True
+    # 3. Edge-aware normalization
+    edges = optimized_canny(equalized, sigma=1.4, 
+                          low_thresh=30, high_thresh=70)
+    
+    # 4. Edge-enhanced fusion
+    final = weighted_blend(equalized, edges, edge_weight)
+    
+    # Convert back to 3-channel BGR
+    return cv2.cvtColor(final, cv2.COLOR_GRAY2BGR)
+
+def calculate_adaptive_gamma(gray_img):
+    """Auto-determine gamma based on image brightness"""
+    mean_brightness = np.mean(gray_img)
+    return np.clip(0.5 + (mean_brightness/255), 0.3, 2.0)
+
+def optimized_canny(img, sigma=1.4, low_thresh=30, high_thresh=70):
+    """Improved Canny with noise-aware thresholds"""
+    blurred = cv2.GaussianBlur(img, (5,5), sigma)
+    grad_x = cv2.Sobel(blurred, cv2.CV_16S, 1, 0, ksize=3)
+    grad_y = cv2.Sobel(blurred, cv2.CV_16S, 0, 1, ksize=3)
+    
+    # Dynamic thresholding based on gradient magnitudes
+    mag = np.sqrt(grad_x**2 + grad_y**2)
+    non_zero = mag[mag > 0]
+    if len(non_zero) > 0:
+        high = np.percentile(non_zero, 95)
+        low = high * 0.5
+        return cv2.Canny(blurred, low, high)
+    return np.zeros_like(img)
+
+def weighted_blend(base, edges, weight):
+    """Edge-preserving blend"""
+    edges = cv2.GaussianBlur(edges, (3,3), 0.5)
+    return cv2.addWeighted(base, 1-weight, 
+                          edges, weight, 0)
+
+def image_quality_score(img_bgr,
+                        w_sharp=0.4,
+                        w_contrast=0.4,
+                        w_noise=0.2,
+                        sharp_thresh=(100, 1000),
+                        contrast_thresh=(10, 70),
+                        noise_thresh=(0.01, 0.1)):
+    """
+    Compute a quality score in [0,1] for a BGR image.
+
+    Parameters
+    ----------
+    img_bgr : np.ndarray
+        Input image in BGR (uint8).
+    w_sharp, w_contrast, w_noise : float
+        Weights for sharpness, contrast, and noise in the final score.
+        Must sum to 1.0.
+    sharp_thresh : (low, high)
+        Expected min/max of Laplacian variance for good focus.
+    contrast_thresh : (low, high)
+        Expected min/max of RMS contrast for good lighting.
+    noise_thresh : (low, high)
+        Expected min/max of estimated noise std for acceptable noise levels.
+
+    Returns
+    -------
+    score : float
+        Quality score between 0 (worst) and 1 (best).
+    """
+    # 1) Sharpness: variance of Laplacian
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    lap = cv2.Laplacian(gray, cv2.CV_64F)
+    var_lap = lap.var()
+    # normalize to [0,1]
+    s = np.clip((var_lap - sharp_thresh[0]) / (sharp_thresh[1] - sharp_thresh[0]), 0, 1)
+    
+    # 2) Contrast: RMS contrast = std(gray)
+    rms_contrast = gray.std()
+    c = np.clip((rms_contrast - contrast_thresh[0]) / (contrast_thresh[1] - contrast_thresh[0]), 0, 1)
+    
+    # 3) Noise: estimate via patch-based standard deviation of high-freq residual
+    #    subtract a 3×3 mean filter to isolate noise
+    blur = cv2.blur(gray, (3,3))
+    residual = gray.astype(np.float32) - blur.astype(np.float32)
+    noise_std = residual.std() / 255.0  # normalize to [0,1]
+    # lower noise_std is better, so invert and normalize
+    n = np.clip((noise_thresh[1] - noise_std) / (noise_thresh[1] - noise_thresh[0]), 0, 1)
+    
+    # Combine
+    score = w_sharp*s + w_contrast*c + w_noise*n
+    return float(score)
+
 def check_light(image): # don't try if laptop camera is obstructed
     to_check = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     return False if to_check.mean()<20 else True
@@ -175,6 +296,8 @@ def align_face_with_landmarks(face_bgr, output_size=(128, 128),
     Returns:
         np.ndarray: Aligned face image of shape (output_size[1], output_size[0], 3).
     """
+    output = adaptive_face_preprocessing(face_bgr)
+    #output=face_bgr
     # 1. Get model I/O information
     input_info = compiled_landmarks.inputs[0]
     output_info = compiled_landmarks.outputs[0]
@@ -217,7 +340,7 @@ def align_face_with_landmarks(face_bgr, output_size=(128, 128),
     tform, _ = cv2.estimateAffinePartial2D(landmarks, ref_landmarks, method=cv2.LMEDS)
 
     # 7. Warp the original BGR crop to the aligned output
-    aligned = cv2.warpAffine(face_bgr, tform, output_size, flags=cv2.INTER_LINEAR)
+    aligned = cv2.warpAffine(output, tform, output_size, flags=cv2.INTER_LINEAR)
     return aligned
 
 
@@ -293,15 +416,16 @@ def check(username,n_try=5):
         if not ret:
             break
         frame = ensure_bgr(frame)
-        frame = apply_clahe(frame)
-        if not check_quality(frame):
+        #frame = apply_clahe(frame)
+        if not image_quality_score(frame)>0.2:
             failed_find_attempts[current_cap] += 1
             continue
         else:
             failed_find_attempts[current_cap] //= 2
         
-        frame = gray_world_correction(frame)
-        frame = cv2.filter2D(frame,-1,np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
+        #frame = gray_world_correction(frame)
+        #frame = cv2.filter2D(frame,-1,np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
+        #frame = preprocess(frame)
         # 1. Detect faces using the detection model
         # Preprocess frame for detection (resize to model's expected input, e.g., 300x300)
         det_input_size = (300, 300)  # Adjust if needed
@@ -315,11 +439,13 @@ def check(username,n_try=5):
         for (xmin, ymin, xmax, ymax, conf) in boxes:
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
-            if not check_quality(face_crop):
-                continue
+            """if not check_quality(face_crop):
+                continue"""
             did_try=1
             # 3. Run recognition on the face crop
-            rec_face=align_face_with_landmarks(face_crop)
+            #rec_face = apply_clahe(face_crop)
+            rec_face = stretch_contrast(face_crop)
+            rec_face=align_face_with_landmarks(rec_face)
             rec_face = gray_world_correction(rec_face)
             rec_input = rec_face.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
             rec_embedding = compiled_rec([rec_input])[compiled_rec.output(0)]
@@ -373,9 +499,11 @@ def add_face(cap_path=...,face_name=...):
         if not ret:
             break
         frame = ensure_bgr(frame)
-        frame = apply_clahe(frame)
-        frame = gray_world_correction(frame)
-        frame = cv2.filter2D(frame,-1,np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
+        
+        #frame = gray_world_correction(frame)
+        #frame = apply_clahe(frame)
+        print(image_quality_score(frame))
+        #frame = cv2.filter2D(frame,-1,np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
         # 1. Detect faces using the detection model
         # Preprocess frame for detection (resize to model's expected input, e.g., 300x300)
         det_input_size = (300, 300)  # Adjust if needed
@@ -393,13 +521,16 @@ def add_face(cap_path=...,face_name=...):
             cv2.rectangle(frame, (xmin-2, ymin-2), (xmax+2, ymax+2), (0, 255, 0), 2)
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
-            if not check_quality(face_crop):
+            if not image_quality_score(face_crop)>0.2:
                 continue # skip unusable faces crop
-            # Vertically align th eface crop using landmarks detection
+            #face_crop = cv2.cvtColor(preprocess_face_image(face_crop), cv2.COLOR_GRAY2BGR)
+            # Vertically align the face crop using landmarks detection
+            rec_face = stretch_contrast(face_crop)
+            #rec_face = apply_clahe(rec_face)
             rec_face=align_face_with_landmarks(face_crop)
-            if not check_quality(face_crop):
-                continue # skip unusable aligned faces crop
-            rec_face = gray_world_correction(rec_face)
+            """if not check_quality(rec_face):
+                continue # skip unusable aligned faces crop"""
+            
             # 3. Run recognition on the face crop
             rec_input = rec_face.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
             rec_embedding = compiled_rec([rec_input])[compiled_rec.output(0)]
