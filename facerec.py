@@ -439,6 +439,7 @@ def check(username,n_try=5):
         for (xmin, ymin, xmax, ymax, conf) in boxes:
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
+            
             if not image_quality_score(face_crop) > 0.3:
                 continue
             did_try=1
@@ -447,6 +448,7 @@ def check(username,n_try=5):
             rec_face = stretch_contrast(face_crop)
             rec_face=align_face_with_landmarks(rec_face)
             rec_face = gray_world_correction(rec_face)
+            
             rec_input = rec_face.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
             rec_embedding = compiled_rec([rec_input])[compiled_rec.output(0)]
             # Compare with every reference embedding
@@ -499,6 +501,7 @@ def add_face(cap_path=...,face_name=...):
         if not ret:
             break
         frame = ensure_bgr(frame)
+        h,w,c = frame.shape
         
         # 1. Detect faces using the detection model
         # Preprocess frame for detection (resize to model's expected input, e.g., 300x300)
@@ -511,25 +514,26 @@ def add_face(cap_path=...,face_name=...):
         # Parse detection output (update parsing based on your model’s output format)
         boxes = parse_detections(det_result, frame.shape, conf_threshold=FACE_THRESHOLD)
         for (xmin, ymin, xmax, ymax, conf) in boxes:
-            xmin, ymin = xmin - 10, ymin - 10 # Leave some margin to get a usable result after re-alignment 
-            xmax, ymax = xmax + 10, ymax + 10
+            xmin, ymin = max(xmin - 10,0), max(ymin - 10,0) # Leave some margin to get a usable result after re-alignment 
+            xmax, ymax = min(xmax + 10,w), min(ymax + 10,h)
             # Draw box
             cv2.rectangle(frame, (xmin-2, ymin-2), (xmax+2, ymax+2), (0, 255, 0), 2)
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
+            crop_dims=xmax-xmin,ymax-ymin
             if not image_quality_score(face_crop)>0.3:
                 continue # skip unusable faces crop
             # Vertically align the face crop using landmarks detection
             rec_face = stretch_contrast(face_crop)
             rec_face=align_face_with_landmarks(face_crop)
-            
+            rec_face=gray_world_correction(rec_face)
+            frame[ymin:ymax, xmin:xmax] = cv2.resize(rec_face,crop_dims)
             # 3. Run recognition on the face crop
             rec_input = rec_face.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
             rec_embedding = compiled_rec([rec_input])[compiled_rec.output(0)]
             # Compare with every reference embedding
             similarities = [cosine_similarity(ref_emb, rec_embedding) for ref_emb in new_face]
             face_preview = cv2.resize(rec_face, (128, 128))
-            cv2.imshow("Face Crop", rec_face)
             # You can adjust your threshold accordingly
             if (all([0.2 < sim < IMPROVE_THRESHOLD for sim in similarities]) and len(new_face)<FIRST_TRAIN_SIZE) or len(new_face)==0: # use as training image
                 new_face.append(rec_embedding)
