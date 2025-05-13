@@ -480,6 +480,7 @@ def add_face(cap_path=...,face_name=...):
     
     But in most cases, it just improve performance (you need less frames to be recognized).
     """
+    total_progress=0
     if cap_path==... or not os.path.exists(cap_path):
         cap_path=CAP_PATHS[0]
     username=os.environ["USER"]
@@ -497,6 +498,7 @@ def add_face(cap_path=...,face_name=...):
     if not cap.isOpened():
         return "Error: Failed to open Webcam"
     while True:
+        appended=False
         ret, frame = cap.read()
         if not ret:
             break
@@ -535,14 +537,30 @@ def add_face(cap_path=...,face_name=...):
             similarities = [cosine_similarity(ref_emb, rec_embedding) for ref_emb in new_face]
             face_preview = cv2.resize(rec_face, (128, 128))
             # You can adjust your threshold accordingly
-            if (all([0.2 < sim < IMPROVE_THRESHOLD for sim in similarities]) and len(new_face)<FIRST_TRAIN_SIZE) or len(new_face)==0: # use as training image
+            if all([0.2 < sim < IMPROVE_THRESHOLD for sim in similarities]) or len(new_face)==0: # use as training image
                 new_face.append(rec_embedding)
-                print("",len(new_face),"/",FIRST_TRAIN_SIZE,"training frames saved...", end="\r")
+                appened=True
+        
+        if appened:
+            quality_score = image_quality_score(frame)
+            total_progress+=((quality_score)/2)
+        text = f"Face training : {total_progress:.2f} %"
+        cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 2, cv2.LINE_AA)
+        bar_x, bar_y = 10, 50
+        bar_w = 550
+        print(total_progress)
+        progress = int(total_progress/100 * bar_w)
+        cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_w, bar_y + 20), (100, 100, 100), -1)
+        cv2.rectangle(frame, (bar_x, bar_y), (bar_x + progress, bar_y + 20), (0, 255, 0), -1)
+        cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_w, bar_y + 20), (255, 255, 255), 2)
         cv2.imshow("Webcam - Press 's' to save face", frame)
+        appended=False
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-        if len(new_face)>=FIRST_TRAIN_SIZE:
+        if total_progress>=100:
             print("Succeeded to record needed data...\nYour face has been recorded.")
+            print(len(new_face),"images registered successfully.")
+
             break
                 
     cap.release()
