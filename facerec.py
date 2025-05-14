@@ -44,15 +44,15 @@ core = Core()
 # 1. Face Detection Model
 det_model_path = os.path.join(DIR,"models/face-detection-retail-0005.xml")
 det_model = core.read_model(det_model_path)
-compiled_det = core.compile_model(det_model, "CPU")
+compiled_det = core.compile_model(det_model, "NPU")
 # 2. Face Landmarks checking model
 landmarks_model_path = os.path.join(DIR,"models/landmarks-regression-retail-0009.xml")
 landmarks_model = core.read_model(landmarks_model_path)
-compiled_landmarks = core.compile_model(landmarks_model, "CPU")
+compiled_landmarks = core.compile_model(landmarks_model, "NPU")
 # 3. Face Recognition Model
 rec_model_path = os.path.join(DIR,"models/face-reidentification-retail-0095.xml")
 rec_model = core.read_model(rec_model_path)
-compiled_rec = core.compile_model(rec_model, "CPU")
+compiled_rec = core.compile_model(rec_model, "NPU")
 
 def ensure_bgr(frame):
     """Ensure a frame is in BGR 3-channel format."""
@@ -520,7 +520,7 @@ def check(username,n_try=5):
     cap.release()
     return "fail"
     
-def add_face(cap_path=...,face_name=...):
+def add_face(cap_path=...,face_name=...,complete=False):
     """
     python facerec.py add
     Allow to save needed data for good performance on first unlock attempts.
@@ -565,6 +565,7 @@ def add_face(cap_path=...,face_name=...):
         det_result = compiled_det([input_blob_det])[compiled_det.output(0)]
         # Parse detection output (update parsing based on your model’s output format)
         boxes = parse_detections(det_result, frame.shape, conf_threshold=FACE_THRESHOLD)
+        appened=False
         for (xmin, ymin, xmax, ymax, conf) in boxes:
             xmin, ymin = max(xmin - 10,0), max(ymin - 10,0) # Leave some margin to get a usable result after re-alignment 
             xmax, ymax = min(xmax + 10,w), min(ymax + 10,h)
@@ -590,10 +591,13 @@ def add_face(cap_path=...,face_name=...):
             if all([0.2 < sim < IMPROVE_THRESHOLD for sim in similarities]) or len(new_face)==0: # use as training image
                 new_face.append(rec_embedding)
                 appened=True
-        
         if appened:
             quality_score = image_quality_score(frame)
-            total_progress+=((quality_score)/2)
+            if not complete:
+                total_progress+=((quality_score)*2) 
+            else:
+                total_progress+=((quality_score))
+
         text = f"Face training : {total_progress:.2f} %"
         cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 2, cv2.LINE_AA)
         bar_x, bar_y = 10, 50
@@ -650,7 +654,9 @@ def remove_face(*selection):
 if __name__=="__main__":
     if len(sys.argv)>1:
         if sys.argv[1]=="add":
-            add_face(*sys.argv[2:])
+            add_face(*sys.argv[2:],complete=False)
+        elif sys.argv[1]=="complete_add":
+            add_face(*sys.argv[2:],complete=True)
         elif sys.argv[1]=="remove":
             remove_face(*sys.argv[2:])
         elif sys.argv[1]=="check":
