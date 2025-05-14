@@ -13,9 +13,12 @@ CAP_PATHS = ["/dev/video0","/dev/video2"] # fallback mechanism
 CAPTURE_PATH = "/dev/video2"
 RECOGNITION_TIMEOUT = 1.5
 FACE_THRESHOLD = 0.7
-CONFIDENCE_THRESHOLD = 0.7
 IMPROVE_THRESHOLD = 0.8
 FIRST_TRAIN_SIZE = 50
+# Sum of K and C: Max threshold size (for 1st frame)
+K = 0.2
+# Min threshold
+C = 0.5
 USAGE = f"""\
 Usage:
     {sys.argv[0]} add [face_name]
@@ -118,9 +121,22 @@ def apply_gamma(img, gamma):
     # Apply gamma correction
     return cv2.LUT(img, table)
 
+def apply_clahe_bgr(img_bgr):
+    # Convert BGR to YUV
+    img_yuv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2YUV)
+
+    # Apply CLAHE to the Y channel (luminance)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    img_yuv[:, :, 0] = clahe.apply(img_yuv[:, :, 0])
+
+    # Convert back to BGR
+    img_clahe = cv2.cvtColor(img_yuv, cv2.COLOR_YUV2BGR)
+
+    return img_clahe
+
 def adaptive_face_preprocessing(img_bgr, 
                                auto_gamma=True, 
-                               edge_weight=0.3,
+                               edge_weight=0.1,
                                ir_mode=False):
     """
     Enhanced pipeline with:
@@ -146,21 +162,19 @@ def adaptive_face_preprocessing(img_bgr,
     else:
         gamma = 0.8 if ir_mode else 1.2  # Baseline values
     
-    gamma_corrected = apply_gamma(gray, gamma)
+    gamma_corrected = apply_gamma(img_bgr, gamma)
 
     # 2. Adaptive histogram equalization
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-    equalized = clahe.apply(gamma_corrected)
+    equalized = apply_clahe_bgr(gamma_corrected)
 
     # 3. Edge-aware normalization
     edges = optimized_canny(equalized, sigma=1.4, 
                           low_thresh=30, high_thresh=70)
     
     # 4. Edge-enhanced fusion
-    final = weighted_blend(equalized, edges, edge_weight)
-    
-    # Convert back to 3-channel BGR
-    return cv2.cvtColor(final, cv2.COLOR_GRAY2BGR)
+    final = edge_blend_bgr(equalized, edges, edge_weight)
+
+    return final
 
 def calculate_adaptive_gamma(gray_img):
     """Auto-determine gamma based on image brightness"""
@@ -182,11 +196,26 @@ def optimized_canny(img, sigma=1.4, low_thresh=30, high_thresh=70):
         return cv2.Canny(blurred, low, high)
     return np.zeros_like(img)
 
-def weighted_blend(base, edges, weight):
-    """Edge-preserving blend"""
-    edges = cv2.GaussianBlur(edges, (3,3), 0.5)
-    return cv2.addWeighted(base, 1-weight, 
-                          edges, weight, 0)
+def edge_blend_bgr(img_bgr, edges, edge_weight=0.3):
+    """
+    Blends grayscale edge map into each BGR channel.
+    Assumes edges is normalized to [0, 1] or [0, 255]
+    """
+    # Normalize edges to 0–1
+    if edges.max() > 1:
+        edges = edges.astype(np.float32) / 255.0
+
+    # Convert BGR to float
+    img_bgr = img_bgr.astype(np.float32) / 255.0
+
+    # Expand edges to 3 channels
+    edges_3ch = np.stack([edges]*3, axis=-1)
+
+    # Blend
+    blended = (1 - edge_weight) * img_bgr + edge_weight * edges_3ch
+    blended = np.clip(blended * 255, 0, 255).astype(np.uint8)
+
+    return blended
 
 def image_quality_score(img_bgr,
                         w_sharp=0.4,
@@ -405,6 +434,7 @@ def check(username,n_try=5):
     attempts_count=0
     ret, frame = cap.read()
     start_time = time.monotonic()
+    list_sims = []
     while attempts_count<n_try and any(i<11 for i in failed_find_attempts) and time.monotonic()<start_time+RECOGNITION_TIMEOUT:
         did_try=0
         if failed_find_attempts[current_cap] > 10:
@@ -436,6 +466,7 @@ def check(username,n_try=5):
         det_result = compiled_det([input_blob_det])[compiled_det.output(0)]
         # Parse detection output (update parsing based on your model’s output format)
         boxes = parse_detections(det_result, frame.shape, conf_threshold=FACE_THRESHOLD)
+        for_loop_list_sims=[]
         for (xmin, ymin, xmax, ymax, conf) in boxes:
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
@@ -454,15 +485,29 @@ def check(username,n_try=5):
             # Compare with every reference embedding
             for key, user_face in ref_embeddings[username].items():
                 similarities = [cosine_similarity(ref_emb, rec_embedding) for ref_emb in user_face]
-                # You can adjust your threshold accordingly
-                is_match = any([sim > CONFIDENCE_THRESHOLD for sim in similarities])
-                if is_match:
+                sim = max(similarities)
+                if sim > C+K:
                     cap.release()
                     if all([sim < IMPROVE_THRESHOLD for sim in similarities]) and len(user_face)<500: # use as training image
                         user_face.append(rec_embedding)
                         with open(os.path.join(DIR,"preload_embeddings.pkl"), "wb") as f:
                             pickle.dump(ref_embeddings, f)
                     return "pass"
+                if sim > C:
+                    for_loop_list_sims.append(sim)
+                    break
+                else:
+                    continue
+        if len(for_loop_list_sims):
+            list_sims.append(max(for_loop_list_sims))
+            threshold = K * len(list_sims) + C
+            if all(s>threshold for s in list_sims):
+                cap.release()
+                if all([sim < IMPROVE_THRESHOLD for sim in similarities]) and len(user_face)<500: # use as training image
+                    user_face.append(rec_embedding)
+                    with open(os.path.join(DIR,"preload_embeddings.pkl"), "wb") as f:
+                        pickle.dump(ref_embeddings, f)
+                return "pass"
         if did_try == 0: # if there were no boundings of a sufficient quality, then this try wasn't good for this cap
             failed_find_attempts[current_cap] += 1
         attempts_count+=did_try
