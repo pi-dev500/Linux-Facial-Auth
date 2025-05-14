@@ -435,6 +435,9 @@ def check(username,n_try=5):
     ret, frame = cap.read()
     start_time = time.monotonic()
     list_sims = []
+    list_embeddings = []
+    def score(rec_embedding):
+        return max(cosine_similarity(ref_emb, rec_embedding) for ref_emb in user_face for key, user_face in ref_embeddings[username].items())
     while attempts_count<n_try and any(i<11 for i in failed_find_attempts) and time.monotonic()<start_time+RECOGNITION_TIMEOUT:
         did_try=0
         if failed_find_attempts[current_cap] > 10:
@@ -466,7 +469,7 @@ def check(username,n_try=5):
         det_result = compiled_det([input_blob_det])[compiled_det.output(0)]
         # Parse detection output (update parsing based on your model’s output format)
         boxes = parse_detections(det_result, frame.shape, conf_threshold=FACE_THRESHOLD)
-        for_loop_list_sims=[]
+        for_loop_list_embeddings = []
         for (xmin, ymin, xmax, ymax, conf) in boxes:
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
@@ -493,18 +496,20 @@ def check(username,n_try=5):
                         with open(os.path.join(DIR,"preload_embeddings.pkl"), "wb") as f:
                             pickle.dump(ref_embeddings, f)
                     return "pass"
-                if sim > C:
-                    for_loop_list_sims.append(sim)
+                elif sim > C:
+                    for_loop_list_embeddings.append((rec_embedding,key))
                     break
                 else:
                     continue
-        if len(for_loop_list_sims):
-            list_sims.append(max(for_loop_list_sims))
+        if len(for_loop_list_embeddings):
+            list_embeddings.append(max(for_loop_list_embeddings,key=lambda k:score(k[0])))
             threshold = K * len(list_sims) + C
-            if all(s>threshold for s in list_sims):
+            if all(score(rec[0])>threshold for rec in list_embeddings):
                 cap.release()
-                if all([sim < IMPROVE_THRESHOLD for sim in similarities]) and len(user_face)<500: # use as training image
-                    user_face.append(rec_embedding)
+                for rec in list_embeddings:
+                    if score(rec[0])<IMPROVE_THRESHOLD:
+                        ref_embeddings[username][rec[1]].append(rec_embedding)
+                if any([score(rec[0]) < IMPROVE_THRESHOLD for rec in list_embeddings]) and len(user_face)<500: # use as training image
                     with open(os.path.join(DIR,"preload_embeddings.pkl"), "wb") as f:
                         pickle.dump(ref_embeddings, f)
                 return "pass"
