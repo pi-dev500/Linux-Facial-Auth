@@ -44,15 +44,15 @@ core = Core()
 # 1. Face Detection Model
 det_model_path = os.path.join(DIR,"models/face-detection-retail-0005.xml")
 det_model = core.read_model(det_model_path)
-compiled_det = core.compile_model(det_model, "NPU")
+compiled_det = core.compile_model(det_model, "AUTO")
 # 2. Face Landmarks checking model
 landmarks_model_path = os.path.join(DIR,"models/landmarks-regression-retail-0009.xml")
 landmarks_model = core.read_model(landmarks_model_path)
-compiled_landmarks = core.compile_model(landmarks_model, "NPU")
+compiled_landmarks = core.compile_model(landmarks_model, "AUTO")
 # 3. Face Recognition Model
 rec_model_path = os.path.join(DIR,"models/face-reidentification-retail-0095.xml")
 rec_model = core.read_model(rec_model_path)
-compiled_rec = core.compile_model(rec_model, "NPU")
+compiled_rec = core.compile_model(rec_model, "AUTO")
 
 def ensure_bgr(frame):
     """Ensure a frame is in BGR 3-channel format."""
