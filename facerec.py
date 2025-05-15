@@ -7,6 +7,26 @@ import os
 import subprocess
 import pickle
 import time
+import shutil
+
+def display_bgr_term(frame):
+    def unicode_color_fg(b, g, r): return f"\x1b[38;2;{int(r)};{int(g)};{int(b)}m"
+    def unicode_color_bg(b, g, r): return f"\x1b[48;2;{r};{g};{b}m"
+    cols, rows = shutil.get_terminal_size()
+    cols = min(cols,80)
+    rows = min(rows,25)
+    frame = cv2.resize(frame, (cols, rows*2))
+    frame_unicode = "" #f"\x1b[{rows+1}A\r"
+    for i in range(0, len(frame), 2):
+        row1,row2=frame[i], frame[i+1]
+        for pixtop,pixbottom in zip(row1,row2):
+            frame_unicode+=unicode_color_bg(*pixbottom)
+            frame_unicode+=unicode_color_fg(*pixtop)
+            frame_unicode+="▄"
+        frame_unicode+="\n"
+    frame_unicode+="\x1b[0m" + f"\x1b[{rows}A\r"
+    return frame_unicode
+
 
 DIR = os.path.dirname(__file__)
 CAP_PATHS = ["/dev/video0","/dev/video2"] # fallback mechanism
@@ -533,7 +553,7 @@ def add_face(cap_path=...,face_name=...,complete=False):
     total_progress=0
     if cap_path==... or not os.path.exists(cap_path):
         cap_path=CAP_PATHS[0]
-    username=os.environ["USER"]
+    username = os.environ["USER"]
     new_face=[]
     if not username in ref_embeddings:
         ref_embeddings[username]={}
@@ -602,12 +622,18 @@ def add_face(cap_path=...,face_name=...,complete=False):
         cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 2, cv2.LINE_AA)
         bar_x, bar_y = 10, 50
         bar_w = 550
-        print(total_progress)
+        if not username == "root":
+            print(total_progress)
         progress = int(total_progress/100 * bar_w)
         cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_w, bar_y + 20), (100, 100, 100), -1)
         cv2.rectangle(frame, (bar_x, bar_y), (bar_x + progress, bar_y + 20), (0, 255, 0), -1)
         cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_w, bar_y + 20), (255, 255, 255), 2)
-        cv2.imshow("Webcam - Press 's' to save face", frame)
+        if not username == "root":
+            cv2.imshow("Webcam - Press 's' to save face", frame)
+        else:
+            #
+            print(display_bgr_term(frame),end="")
+            print(" " + str(int(total_progress))+"%",end="\r")
         appended=False
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
