@@ -594,9 +594,9 @@ def add_face(cap_path=...,face_name=...,complete=False):
         if appened:
             quality_score = image_quality_score(frame)
             if not complete:
-                total_progress+=((quality_score)*2) 
+                total_progress+=((quality_score)*3) 
             else:
-                total_progress+=((quality_score))
+                total_progress+=((quality_score)*1.3)
 
         text = f"Face training : {total_progress:.2f} %"
         cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 2, cv2.LINE_AA)
