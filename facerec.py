@@ -2,30 +2,14 @@
 import sys
 import cv2
 import numpy as np
-from openvino import Core
+from openvino import Core, convert_model
 import os
 import subprocess
 import pickle
 import time
 import shutil
+from skimage.feature import local_binary_pattern
 
-def display_bgr_term(frame):
-    def unicode_color_fg(b, g, r): return f"\x1b[38;2;{int(r)};{int(g)};{int(b)}m"
-    def unicode_color_bg(b, g, r): return f"\x1b[48;2;{r};{g};{b}m"
-    cols, rows = shutil.get_terminal_size()
-    cols = min(cols,80)
-    rows = min(rows,25)
-    frame = cv2.resize(frame, (cols, rows*2))
-    frame_unicode = "" #f"\x1b[{rows+1}A\r"
-    for i in range(0, len(frame), 2):
-        row1,row2=frame[i], frame[i+1]
-        for pixtop,pixbottom in zip(row1,row2):
-            frame_unicode+=unicode_color_bg(*pixbottom)
-            frame_unicode+=unicode_color_fg(*pixtop)
-            frame_unicode+="▄"
-        frame_unicode+="\n"
-    frame_unicode+="\x1b[0m" + f"\x1b[{rows}A\r"
-    return frame_unicode
 
 
 DIR = os.path.dirname(__file__)
@@ -35,6 +19,7 @@ RECOGNITION_TIMEOUT = 1.5
 FACE_THRESHOLD = 0.7
 IMPROVE_THRESHOLD = 0.8
 FIRST_TRAIN_SIZE = 50
+SPOOF_EXPECTANCE = 0.5
 # Sum of K and C: Max threshold size (for 1st frame)
 K = 0.2
 # Min threshold
@@ -73,6 +58,28 @@ compiled_landmarks = core.compile_model(landmarks_model, "AUTO")
 rec_model_path = os.path.join(DIR,"models/face-reidentification-retail-0095.xml")
 rec_model = core.read_model(rec_model_path)
 compiled_rec = core.compile_model(rec_model, "AUTO")
+# 4. Anti-Spoof model
+anti_spoof_model_path = os.path.join(DIR,"models/minifacenetv2.xml")
+anti_spoof_model = core.read_model(anti_spoof_model_path)
+compiled_anti_spoof = core.compile_model(anti_spoof_model, "AUTO")
+
+def display_bgr_term(frame):
+    def unicode_color_fg(b, g, r): return f"\x1b[38;2;{int(r)};{int(g)};{int(b)}m"
+    def unicode_color_bg(b, g, r): return f"\x1b[48;2;{r};{g};{b}m"
+    cols, rows = shutil.get_terminal_size()
+    cols = min(cols,rows*2,64)
+    rows = cols
+    frame = cv2.resize(frame, (cols, rows))
+    frame_unicode = "" #f"\x1b[{rows+1}A\r"
+    for i in range(0, len(frame), 2):
+        row1,row2=frame[i], frame[i+1]
+        for pixtop,pixbottom in zip(row1,row2):
+            frame_unicode+=unicode_color_bg(*pixbottom)
+            frame_unicode+=unicode_color_fg(*pixtop)
+            frame_unicode+="▄"
+        frame_unicode+="\n"
+    frame_unicode+="\x1b[0m" + f"\x1b[{rows//2}A\r"
+    return frame_unicode
 
 def ensure_bgr(frame):
     """Ensure a frame is in BGR 3-channel format."""
@@ -312,9 +319,7 @@ def get_scaled_ref_landmarks(output_size=(112, 112), zoom=1.0, widen=1.2):
     base = np.array([
         [38.2946, 51.6963],
         [73.5318, 51.5014],
-        [56.0252, 71.7366],
-        [41.5493, 92.3655],
-        [70.7299, 92.2041],
+        [56.1396, 92.3655], # mid mouth
     ], dtype=np.float32)
 
     center = np.mean(base, axis=0)
@@ -330,8 +335,8 @@ def get_scaled_ref_landmarks(output_size=(112, 112), zoom=1.0, widen=1.2):
 
     return scaled
 
-def align_face_with_landmarks(face_bgr, output_size=(128, 128),
-                              ref_landmarks=None):
+def align_face_with_landmarks(face_bgr, orig_frame, bbox, output_size=(128, 128),
+                              ref_landmarks=None, anti_spoof_size_boost = 2.7):
     """
     Aligns a face image using landmarks-regression-retail-0009 and OpenCV.
 
@@ -367,30 +372,22 @@ def align_face_with_landmarks(face_bgr, output_size=(128, 128),
     h, w = face_bgr.shape[:2]
     landmarks[:, 0] *= w
     landmarks[:, 1] *= h
-
+    landmarks += (bbox[0],bbox[1])
+    mouth_coords = landmarks[3:]
+    mouth_center = (mouth_coords[0,0]+mouth_coords[1,0])/2,(mouth_coords[0,1]+mouth_coords[1,1])/2
+    landmarks = np.array([*landmarks[:2],mouth_center])[:2]
     # 5. Reference points (ArcFace), scaled to output_size
-    if ref_landmarks is None:
-        # ArcFace src points assume 112×112 output
-        ref_landmarks = np.array([
-            [38.2946, 51.6963],
-            [73.5318, 51.5014],
-            [56.0252, 71.7366],
-            [41.5493, 92.3655],
-            [70.7299, 92.2041]
-        ], dtype=np.float32)
-        
-        scale_x = output_size[0] / 112.0
-        scale_y = output_size[1] / 112.0
-        ref_landmarks[:, 0] *= scale_x
-        ref_landmarks[:, 1] *= scale_y
-        ref_landmarks = get_scaled_ref_landmarks((128,128),zoom=1.7)
+    ref_landmarks = get_scaled_ref_landmarks((128,128),zoom=1)[:2] # + (bbox[0],bbox[1])
+    ref_landmarks_anti_spoof = get_scaled_ref_landmarks((128,128),zoom=1/anti_spoof_size_boost)[:2]
 
     # 6. Estimate affine transform
     tform, _ = cv2.estimateAffinePartial2D(landmarks, ref_landmarks, method=cv2.LMEDS)
-
+    tform_spoof, _ = cv2.estimateAffinePartial2D(landmarks, ref_landmarks_anti_spoof, method=cv2.LMEDS)
     # 7. Warp the original BGR crop to the aligned output
-    aligned = cv2.warpAffine(output, tform, output_size, flags=cv2.INTER_LINEAR)
-    return aligned
+    aligned = cv2.warpAffine(orig_frame, tform, output_size, flags=cv2.INTER_LINEAR)
+    anti_spoof_aligned = cv2.warpAffine(orig_frame, tform_spoof, output_size, flags=cv2.INTER_LINEAR)
+    
+    return aligned, anti_spoof_aligned
 
 
 #----This part load the face data-----------
@@ -407,19 +404,22 @@ for user, faces in enumerate(ref_embeddings): # turn in  dictionnary for easier 
 #----End data loader-----------------------
 
 # --- Helper: Process detection results ---
-def parse_detections(detections, frame_shape, conf_threshold=0.5):
+def parse_detections(detections, frame_shape, conf_threshold=0.5, minsize = 80):
     h, w = frame_shape[:2]
     boxes = []
     # Assuming the detection model output is in the format:
     # [image_id, label, conf, xmin, ymin, xmax, ymax] for each detection.
     for detection in detections[0][0]:
         confidence = float(detection[2])
-        if confidence > conf_threshold:
-            xmin = int(detection[3] * w)
-            ymin = int(detection[4] * h)
-            xmax = int(detection[5] * w)
-            ymax = int(detection[6] * h)
-            boxes.append((xmin, ymin, xmax, ymax, confidence))
+        if confidence < conf_threshold:
+            continue
+        xmin = int(detection[3] * w)
+        ymin = int(detection[4] * h)
+        xmax = int(detection[5] * w)
+        ymax = int(detection[6] * h)
+        if xmax - xmin < minsize or ymax - ymin < minsize:
+            continue
+        boxes.append((xmin, ymin, xmax, ymax, confidence))
     return boxes
 
 if len(ref_embeddings)>100: # lighten the presaved things
@@ -435,6 +435,7 @@ if len(ref_embeddings)>100: # lighten the presaved things
     # save the lightened preload
     with open(os.path.join(DIR,"preload_embeddings.pkl"), "wb") as f:
         pickle.dump(ref_embeddings, f)
+
 
 def check(username,n_try=5):
     """
@@ -454,12 +455,16 @@ def check(username,n_try=5):
     attempts_count=0
     ret, frame = cap.read()
     start_time = time.monotonic()
-    list_sims = []
-    list_embeddings = []
+    list_faces = []
+    spoof_attempts = 0
+    reason  = "not recognized"
     def score(rec_embedding):
         return max(cosine_similarity(ref_emb, rec_embedding) for ref_emb in user_face for key, user_face in ref_embeddings[username].items())
     while attempts_count<n_try and any(i<11 for i in failed_find_attempts) and time.monotonic()<start_time+RECOGNITION_TIMEOUT:
         did_try=0
+        if spoof_attempts>2:
+            reason = "spoof detected"
+            break
         if failed_find_attempts[current_cap] > 10:
             current_cap = (current_cap + 1) % len(CAP_PATHS)
             cap.release()
@@ -469,76 +474,77 @@ def check(username,n_try=5):
         if not ret:
             break
         frame = ensure_bgr(frame)
-        #frame = apply_clahe(frame)
+        
+
         if not image_quality_score(frame)>0.3:
             failed_find_attempts[current_cap] += 1
             continue
         else:
             failed_find_attempts[current_cap] //= 2
         
-        #frame = gray_world_correction(frame)
-        #frame = cv2.filter2D(frame,-1,np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
-        #frame = preprocess(frame)
         # 1. Detect faces using the detection model
         # Preprocess frame for detection (resize to model's expected input, e.g., 300x300)
         det_input_size = (300, 300)  # Adjust if needed
         frame_resized = cv2.resize(frame, det_input_size)
         # Assume detection model requires CHW; adjust conversion if needed
         input_blob_det = frame_resized.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
+        
         # Run detection
         det_result = compiled_det([input_blob_det])[compiled_det.output(0)]
         # Parse detection output (update parsing based on your model’s output format)
         boxes = parse_detections(det_result, frame.shape, conf_threshold=FACE_THRESHOLD)
-        for_loop_list_embeddings = []
+        for_loop_list_faces = []
         for (xmin, ymin, xmax, ymax, conf) in boxes:
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
-            
             if not image_quality_score(face_crop) > 0.3:
                 continue
             did_try=1
             # 3. Run recognition on the face crop
             #rec_face = apply_clahe(face_crop)
             rec_face = stretch_contrast(face_crop)
-            rec_face=align_face_with_landmarks(rec_face)
-            rec_face = gray_world_correction(rec_face)
+            rec_face, anti_spoof_face = align_face_with_landmarks(rec_face, frame, (xmin,ymin,xmax,ymax))
+            #rec_face = gray_world_correction(rec_face)
+            anti_spoof_face = cv2.resize(anti_spoof_face,[80,80]).transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
+            anti_spoof_result = compiled_anti_spoof([anti_spoof_face])[compiled_anti_spoof.output(0)]
+            label = np.argmax(anti_spoof_result)
+            value = anti_spoof_result[0][label]/2
             
-            rec_input = rec_face.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
+            if label != 1:
+                spoof_attempts+=1
+                break
+
+            rec_input = adaptive_face_preprocessing(rec_face).transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
             rec_embedding = compiled_rec([rec_input])[compiled_rec.output(0)]
             # Compare with every reference embedding
             for key, user_face in ref_embeddings[username].items():
                 similarities = [cosine_similarity(ref_emb, rec_embedding) for ref_emb in user_face]
                 sim = max(similarities)
-                if sim > C+K:
-                    cap.release()
-                    if all([sim < IMPROVE_THRESHOLD for sim in similarities]) and len(user_face)<500: # use as training image
-                        user_face.append(rec_embedding)
+                if sim > C:
+                    for_loop_list_faces.append((rec_embedding, key, anti_spoof_face))
+                    break
+        if len(for_loop_list_faces):
+            list_faces.append(max(for_loop_list_faces,key=lambda k:score(k[0])))
+            threshold = K / len(list_faces) + C
+                
+            if all(score(rec[0])>threshold for rec in list_faces):
+                cap.release()
+                for rec in list_faces:
+                    if score(rec[0])<IMPROVE_THRESHOLD and len(ref_embeddings[username][rec[1]])<500:
+                        ref_embeddings[username][rec[1]].append(rec[0])
+                if any([score(rec[0]) < IMPROVE_THRESHOLD for rec in list_faces]): # use as training image
+                    try:
                         with open(os.path.join(DIR,"preload_embeddings.pkl"), "wb") as f:
                             pickle.dump(ref_embeddings, f)
-                    return "pass"
-                elif sim > C:
-                    for_loop_list_embeddings.append((rec_embedding,key))
-                    break
-                else:
-                    continue
-        if len(for_loop_list_embeddings):
-            list_embeddings.append(max(for_loop_list_embeddings,key=lambda k:score(k[0])))
-            threshold = K * len(list_sims) + C
-            if all(score(rec[0])>threshold for rec in list_embeddings):
-                cap.release()
-                for rec in list_embeddings:
-                    if score(rec[0])<IMPROVE_THRESHOLD:
-                        ref_embeddings[username][rec[1]].append(rec_embedding)
-                if any([score(rec[0]) < IMPROVE_THRESHOLD for rec in list_embeddings]) and len(user_face)<500: # use as training image
-                    with open(os.path.join(DIR,"preload_embeddings.pkl"), "wb") as f:
-                        pickle.dump(ref_embeddings, f)
+                    except PermissionError:
+                        pass
                 return "pass"
         if did_try == 0: # if there were no boundings of a sufficient quality, then this try wasn't good for this cap
             failed_find_attempts[current_cap] += 1
         attempts_count+=did_try
         time.sleep(0.1)
     cap.release()
-    return "fail"
+    return f"fail - {reason}"
     
 def add_face(cap_path=...,face_name=...,complete=False):
     """
@@ -590,7 +596,7 @@ def add_face(cap_path=...,face_name=...,complete=False):
             xmin, ymin = max(xmin - 10,0), max(ymin - 10,0) # Leave some margin to get a usable result after re-alignment 
             xmax, ymax = min(xmax + 10,w), min(ymax + 10,h)
             # Draw box
-            cv2.rectangle(frame, (xmin-2, ymin-2), (xmax+2, ymax+2), (0, 255, 0), 2)
+            #cv2.rectangle(frame, (xmin-2, ymin-2), (xmax+2, ymax+2), (0, 255, 0), 2)
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
             crop_dims=xmax-xmin,ymax-ymin
@@ -598,8 +604,8 @@ def add_face(cap_path=...,face_name=...,complete=False):
                 continue # skip unusable faces crop
             # Vertically align the face crop using landmarks detection
             rec_face = stretch_contrast(face_crop)
-            rec_face=align_face_with_landmarks(face_crop)
-            rec_face=gray_world_correction(rec_face)
+            rec_face , anti_spoof_face = align_face_with_landmarks(rec_face, frame, (xmin,ymin,xmax,ymax))
+            #rec_face=gray_world_correction(rec_face)
             frame[ymin:ymax, xmin:xmax] = cv2.resize(rec_face,crop_dims)
             # 3. Run recognition on the face crop
             rec_input = rec_face.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
@@ -608,6 +614,8 @@ def add_face(cap_path=...,face_name=...,complete=False):
             similarities = [cosine_similarity(ref_emb, rec_embedding) for ref_emb in new_face]
             face_preview = cv2.resize(rec_face, (128, 128))
             # You can adjust your threshold accordingly
+            if username == "root":
+                print(display_bgr_term(rec_face),end="")
             if all([0.2 < sim < IMPROVE_THRESHOLD for sim in similarities]) or len(new_face)==0: # use as training image
                 new_face.append(rec_embedding)
                 appened=True
@@ -631,8 +639,6 @@ def add_face(cap_path=...,face_name=...,complete=False):
         if not username == "root":
             cv2.imshow("Webcam - Press 's' to save face", frame)
         else:
-            #
-            print(display_bgr_term(frame),end="")
             print(" " + str(int(total_progress))+"%",end="\r")
         appended=False
         if cv2.waitKey(1) & 0xFF == ord('q'):
