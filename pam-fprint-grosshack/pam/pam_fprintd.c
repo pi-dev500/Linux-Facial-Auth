@@ -35,11 +35,8 @@
  #include <sys/signalfd.h>
  #include <poll.h>
  #include <termios.h>
- 
- #define SOCKET_PATH_FORMAT "/run/face.sock"
  #include <security/pam_modules.h>
  #include <security/pam_ext.h>
- #include <sys/socket.h>
  #include <sys/un.h>
  #include <unistd.h>
  #include <string.h>
@@ -74,6 +71,8 @@
  #define USEC_PER_SEC ((uint64_t) 1000000ULL)
  #define NSEC_PER_USEC ((uint64_t) 1000ULL)
  #define USEC_PER_MSEC ((uint64_t) 1000ULL)
+
+ int fc_auth(const char* username);
  
  static size_t user_enrolled_prints_num (pam_handle_t *pamh,
                                          sd_bus       *bus,
@@ -802,53 +801,55 @@
  }
  
  
- int fc_auth(const char* username) {
-     ///char socket_path =SOCKET_PATH_FORMAT;
-     struct sockaddr_un addr;
-     int fd;
-     char buf[32];
-     ssize_t n;
- 
-     if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
-         return 0;
-     }
- 
-     memset(&addr, 0, sizeof(struct sockaddr_un));
-     addr.sun_family = AF_UNIX;
-     strncpy(addr.sun_path, SOCKET_PATH_FORMAT, sizeof(addr.sun_path) - 1);
- 
-     if (connect(fd, (struct sockaddr *)&addr, sizeof(struct sockaddr_un)) == -1) {
-         close(fd);
-         return 0;
-     }
- 
-     // Build message: "CheckFace\n<username>\n"
-     size_t msg_len = strlen("CheckFace\n") + strlen(username) + 2;
-     char *msg = malloc(msg_len);
-     if (!msg) {
-         close(fd);
-         return 0;
-     }
-     snprintf(msg, msg_len, "CheckFace\n%s\n", username);
- 
-     write(fd, msg, strlen(msg));
-     free(msg);
- 
-     n = read(fd, buf, sizeof(buf) - 1);
-     close(fd);
- 
-     if (n <= 0) {
-   
-         return 0;
-     }
- 
-     buf[n] = '\0';
-     if (strcmp(buf, "pass") == 0) {
-         return 1;
-     } else {
-         return 0;
-     }
- }
+#include <systemd/sd-bus.h>
+
+int fc_auth(const char *username) {
+    sd_bus *bus = NULL;
+    int ret = 0, r;
+    sd_bus_error error = SD_BUS_ERROR_NULL;
+    sd_bus_message *reply = NULL;
+    const char *result;
+
+    /* 1) Open the system bus */
+    r = sd_bus_open_system(&bus);
+    if (r < 0) {
+        fprintf(stderr, "Failed to connect to system bus: %s\n", strerror(-r));
+        return 0;
+    }
+
+    /* 2) Call the CheckFace method synchronously */
+    r = sd_bus_call_method(bus,
+                           "org.linux.Face",            /* service name */
+                           "/org/linux/Face",           /* object path */
+                           "org.linux.FaceRecognition", /* interface name */
+                           "CheckFace",                 /* method */
+                           &error,
+                           &reply,
+                           "si",                        /* input signature */
+                           username,
+                           5);                          /* max attempts */
+    if (r < 0) {
+        fprintf(stderr, "CheckFace failed: %s\n", error.message);
+        goto finish;
+    }
+
+    /* 3) Parse the single-string return */
+    r = sd_bus_message_read(reply, "s", &result);
+    if (r < 0) {
+        fprintf(stderr, "Failed to parse CheckFace response: %s\n", strerror(-r));
+        goto finish;
+    }
+
+    /* 4) Compare to "pass" */
+    ret = (strcmp(result, "pass") == 0);
+
+finish:
+    sd_bus_error_free(&error);
+    sd_bus_message_unref(reply);
+    sd_bus_unref(bus);
+    return ret;
+}
+
  
  static void* verify_fc_auth(void *d) {
    verify_data *data = d;

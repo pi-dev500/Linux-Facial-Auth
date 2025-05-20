@@ -1,75 +1,80 @@
-// pam_face_socket.c
+/* pam_face_dbus.c - PAM module using D-Bus face recognition service */
+
 #include <security/pam_modules.h>
 #include <security/pam_ext.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <unistd.h>
+#include <gio/gio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <syslog.h>
-#include <errno.h>
-#include <stdlib.h>  // for malloc
-#define SOCKET_PATH_FORMAT "/run/face.sock"
 
-int pam_sm_authenticate(pam_handle_t *pamh, int flags,
-                        int argc, const char **argv) {
-    ///char socket_path =SOCKET_PATH_FORMAT;
-    struct sockaddr_un addr;
-    int fd;
-    char buf[32];
-    ssize_t n;
-    uid_t uid = getuid();
+#define DBUS_BUS_NAME      "org.linux.Face"
+#define DBUS_OBJECT_PATH   "/org/linux/Face"
+#define DBUS_INTERFACE     "org.linux.FaceRecognition"
+#define DBUS_METHOD        "CheckFace"
+#define DEFAULT_ATTEMPTS   5
 
-    // 🧠 Get username
+/*
+ * pam_sm_authenticate: Authenticate user by calling D-Bus face recognition
+ */
+PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags,
+                                   int argc, const char **argv)
+{
     const char *username = NULL;
-    if (pam_get_user(pamh, &username, NULL) != PAM_SUCCESS || username == NULL) {
+    int pam_ret;
+    GError *error = NULL;
+    GDBusConnection *connection = NULL;
+    GVariant *reply = NULL;
+    gchar *result = NULL;
+    guint attempts = DEFAULT_ATTEMPTS;
+
+    /* Retrieve the PAM username */
+    pam_ret = pam_get_user(pamh, &username, NULL);
+    if (pam_ret != PAM_SUCCESS || username == NULL) {
         pam_syslog(pamh, LOG_ERR, "Failed to get username");
         return PAM_AUTH_ERR;
     }
 
-    //snprintf(socket_path, sizeof(socket_path), SOCKET_PATH_FORMAT, uid);
-
-    if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
-        pam_syslog(pamh, LOG_ERR, "socket() failed: %s", strerror(errno));
+    /* Connect to the system bus */
+    connection = g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, &error);
+    if (!connection) {
+        pam_syslog(pamh, LOG_ERR, "Failed to connect to system bus: %s", error->message);
+        g_clear_error(&error);
         return PAM_AUTH_ERR;
     }
 
-    memset(&addr, 0, sizeof(struct sockaddr_un));
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, SOCKET_PATH_FORMAT, sizeof(addr.sun_path) - 1);
+    /* Call the CheckFace method */
+    reply = g_dbus_connection_call_sync(
+        connection,
+        DBUS_BUS_NAME,        /* bus name */
+        DBUS_OBJECT_PATH,     /* object path */
+        DBUS_INTERFACE,       /* interface name */
+        DBUS_METHOD,          /* method name */
+        g_variant_new("(si)", username, attempts), /* input signature: s = string, i = int */
+        G_VARIANT_TYPE("(s)"), /* expected output: single string */
+        G_DBUS_CALL_FLAGS_NONE,
+        -1,                   /* default timeout */
+        NULL,                 /* cancellable */
+        &error);
 
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(struct sockaddr_un)) == -1) {
-        pam_syslog(pamh, LOG_ERR, "connect() failed: %s", strerror(errno));
-        close(fd);
+    if (!reply) {
+        pam_syslog(pamh, LOG_ERR, "D-Bus call failed: %s", error->message);
+        g_clear_error(&error);
+        g_object_unref(connection);
         return PAM_AUTH_ERR;
     }
 
-    // 📦 Build message: "CheckFace\n<username>\n"
-    size_t msg_len = strlen("CheckFace\n") + strlen(username) + 2;
-    char *msg = malloc(msg_len);
-    if (!msg) {
-        pam_syslog(pamh, LOG_ERR, "malloc() failed");
-        close(fd);
-        return PAM_AUTH_ERR;
-    }
-    snprintf(msg, msg_len, "CheckFace\n%s\n", username);
+    /* Parse the response */
+    g_variant_get(reply, "(s)", &result);
+    g_variant_unref(reply);
+    g_object_unref(connection);
 
-    write(fd, msg, strlen(msg));
-    free(msg);
-
-    n = read(fd, buf, sizeof(buf) - 1);
-    close(fd);
-
-    if (n <= 0) {
-        pam_syslog(pamh, LOG_ERR, "read() failed");
-        return PAM_AUTH_ERR;
-    }
-
-    buf[n] = '\0';
-    if (strcmp(buf, "pass") == 0) {
+    /* Evaluate result */
+    if (g_strcmp0(result, "pass") == 0) {
+        g_free(result);
         return PAM_SUCCESS;
     } else {
-        pam_syslog(pamh, LOG_NOTICE, "Face recognition failed (%s)", buf);
+        pam_syslog(pamh, LOG_NOTICE, "Face recognition failed: %s", result);
+        g_free(result);
         return PAM_AUTH_ERR;
     }
 }

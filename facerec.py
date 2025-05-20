@@ -413,14 +413,16 @@ def parse_detections(detections, frame_shape, conf_threshold=0.5, minsize = 80):
         confidence = float(detection[2])
         if confidence < conf_threshold:
             continue
+        centerx, centery = (detection[3] + detection[5])/2, (detection[4] + detection[6])/2
+        dist = (0.5 - centerx)**2 + (0.5 - centery)**2
         xmin = int(detection[3] * w)
         ymin = int(detection[4] * h)
         xmax = int(detection[5] * w)
         ymax = int(detection[6] * h)
         if xmax - xmin < minsize or ymax - ymin < minsize:
             continue
-        boxes.append((xmin, ymin, xmax, ymax, confidence))
-    return boxes
+        boxes.append((xmin, ymin, xmax, ymax, confidence, dist))
+    return sorted(boxes, key = lambda e: e[5])
 
 if len(ref_embeddings)>100: # lighten the presaved things
     final_embeddings=[]
@@ -494,7 +496,7 @@ def check(username,n_try=5):
         # Parse detection output (update parsing based on your model’s output format)
         boxes = parse_detections(det_result, frame.shape, conf_threshold=FACE_THRESHOLD)
         for_loop_list_faces = []
-        for (xmin, ymin, xmax, ymax, conf) in boxes:
+        for (xmin, ymin, xmax, ymax, conf, _) in boxes:
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
             if not image_quality_score(face_crop) > 0.3:
@@ -520,6 +522,9 @@ def check(username,n_try=5):
             for key, user_face in ref_embeddings[username].items():
                 similarities = [cosine_similarity(ref_emb, rec_embedding) for ref_emb in user_face]
                 sim = max(similarities)
+                if sim > C+K:
+                    cap.release()
+                    return "pass"
                 if sim > C:
                     for_loop_list_faces.append((rec_embedding, key, anti_spoof_face))
                     break
@@ -530,14 +535,14 @@ def check(username,n_try=5):
             if all(score(rec[0])>threshold for rec in list_faces):
                 cap.release()
                 for rec in list_faces:
-                    if score(rec[0])<IMPROVE_THRESHOLD and len(ref_embeddings[username][rec[1]])<500:
+                    if score(rec[0]) < C + K and len(ref_embeddings[username][rec[1]])<500:
                         ref_embeddings[username][rec[1]].append(rec[0])
-                if any([score(rec[0]) < IMPROVE_THRESHOLD for rec in list_faces]): # use as training image
+                if any([score(rec[0]) < C + K for rec in list_faces]): # use as training image
                     try:
                         with open(os.path.join(DIR,"preload_embeddings.pkl"), "wb") as f:
                             pickle.dump(ref_embeddings, f)
                     except PermissionError:
-                        pass
+                        pass # that's normal if the user is running the script alone
                 return "pass"
         if did_try == 0: # if there were no boundings of a sufficient quality, then this try wasn't good for this cap
             failed_find_attempts[current_cap] += 1
@@ -592,11 +597,9 @@ def add_face(cap_path=...,face_name=...,complete=False):
         # Parse detection output (update parsing based on your model’s output format)
         boxes = parse_detections(det_result, frame.shape, conf_threshold=FACE_THRESHOLD)
         appened=False
-        for (xmin, ymin, xmax, ymax, conf) in boxes:
+        for (xmin, ymin, xmax, ymax, conf, _) in boxes:
             xmin, ymin = max(xmin - 10,0), max(ymin - 10,0) # Leave some margin to get a usable result after re-alignment 
             xmax, ymax = min(xmax + 10,w), min(ymax + 10,h)
-            # Draw box
-            #cv2.rectangle(frame, (xmin-2, ymin-2), (xmax+2, ymax+2), (0, 255, 0), 2)
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
             crop_dims=xmax-xmin,ymax-ymin
@@ -619,6 +622,7 @@ def add_face(cap_path=...,face_name=...,complete=False):
             if all([0.2 < sim < IMPROVE_THRESHOLD for sim in similarities]) or len(new_face)==0: # use as training image
                 new_face.append(rec_embedding)
                 appened=True
+            break
         if appened:
             quality_score = image_quality_score(frame)
             if not complete:
