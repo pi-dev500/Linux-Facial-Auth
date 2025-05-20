@@ -1,4 +1,4 @@
-# Face Recognition Auth for Linux
+# Complete Auth for Linux
 
   ⚠️ Not finished yet, the only way to configure is editing scripts.
 
@@ -44,9 +44,11 @@
 
 - Low resource usage: Optimized for minimal CPU and memory consumption.
 
-- Camera fallback: Automatically switches between color (/dev/video0) and IR (/dev/video2) cameras.
+- Camera fallback: Automatically switches between cameras following the configured fallback order.
 
 - Image quality checks: Filters out blurry, under-lit, or over-lit images before recognition.
+
+- Anti-Spoof: Use accurate miniFASnetv2 anti-spoofing algorithm.
 
 - Multi-user support: Stores separate embedding dictionaries per Linux user, allowing multiple profiles.
   
