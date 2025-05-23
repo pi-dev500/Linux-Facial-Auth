@@ -307,7 +307,7 @@ def cosine_similarity(a, b):
     b = b.flatten()
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-10)
 
-def get_scaled_ref_landmarks(output_size=(112, 112), zoom=1.0, widen=1.2):
+def get_scaled_ref_landmarks(output_size=(112, 112), zoom=1.0, widen=1):
     """
     Create reference landmarks scaled to fill the canvas more horizontally.
     
@@ -439,11 +439,12 @@ if len(ref_embeddings)>100: # lighten the presaved things
         pickle.dump(ref_embeddings, f)
 
 
-def check(username,n_try=5):
+def check(username,n_try=5, timeout=RECOGNITION_TIMEOUT, commands_trigger=()):
     """
     Deserves to the face recognition in itself.
     Called by the daemon when it receives an auth request
-    take as argument the numbers of frames to check, spaced by ~0.1 second
+    take as argument the numbers of frames to check, and the timeout.
+    The last argument allow to send commands to the process.
     """
     current_cap=0
     failed_find_attempts=[0 for c in CAP_PATHS]
@@ -462,8 +463,14 @@ def check(username,n_try=5):
     reason  = "not recognized"
     def score(rec_embedding):
         return max(cosine_similarity(ref_emb, rec_embedding) for ref_emb in user_face for key, user_face in ref_embeddings[username].items())
-    while attempts_count<n_try and any(i<11 for i in failed_find_attempts) and time.monotonic()<start_time+RECOGNITION_TIMEOUT:
+    while (n_try == ... or attempts_count < n_try) and any(i<11 for i in failed_find_attempts) and time.monotonic() < start_time + timeout:
         did_try=0
+        must_exit = False
+        while len(commands_trigger):
+            command = commands_trigger.pop(0)
+            if command == 1:
+                must_exit = True
+                reason = "Got stop command"
         if spoof_attempts>2:
             reason = "spoof detected"
             break
@@ -499,14 +506,15 @@ def check(username,n_try=5):
         for (xmin, ymin, xmax, ymax, conf, _) in boxes:
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
-            if not image_quality_score(face_crop) > 0.3:
+            if not image_quality_score(face_crop) > 0.2:
                 continue
             did_try=1
-            # 3. Run recognition on the face crop
-            #rec_face = apply_clahe(face_crop)
-            rec_face = stretch_contrast(face_crop)
+
+            # Preprocess the face crop
+            rec_face = stretch_contrast(face_crop) # first improve contrast to ensure correct recognition of landmarks
             rec_face, anti_spoof_face = align_face_with_landmarks(rec_face, frame, (xmin,ymin,xmax,ymax))
-            #rec_face = gray_world_correction(rec_face)
+            
+            # Run the anti-spoof model on the larger face crop
             anti_spoof_face = cv2.resize(anti_spoof_face,[80,80]).transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
             anti_spoof_result = compiled_anti_spoof([anti_spoof_face])[compiled_anti_spoof.output(0)]
             label = np.argmax(anti_spoof_result)
@@ -515,9 +523,11 @@ def check(username,n_try=5):
             if label != 1:
                 spoof_attempts+=1
                 break
-
+            
+            # Run recognition model on face crop
             rec_input = adaptive_face_preprocessing(rec_face).transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
             rec_embedding = compiled_rec([rec_input])[compiled_rec.output(0)]
+
             # Compare with every reference embedding
             for key, user_face in ref_embeddings[username].items():
                 similarities = [cosine_similarity(ref_emb, rec_embedding) for ref_emb in user_face]
@@ -526,28 +536,29 @@ def check(username,n_try=5):
                     cap.release()
                     return "pass"
                 if sim > C:
-                    for_loop_list_faces.append((rec_embedding, key, anti_spoof_face))
+                    for_loop_list_faces.append((rec_embedding, key))
                     break
+
         if len(for_loop_list_faces):
             list_faces.append(max(for_loop_list_faces,key=lambda k:score(k[0])))
-            threshold = K / len(list_faces) + C
+            threshold = K / len(list_faces) + C # custom multi-frames threshold system
                 
             if all(score(rec[0])>threshold for rec in list_faces):
                 cap.release()
                 for rec in list_faces:
                     if score(rec[0]) < C + K and len(ref_embeddings[username][rec[1]])<500:
-                        ref_embeddings[username][rec[1]].append(rec[0])
-                if any([score(rec[0]) < C + K for rec in list_faces]): # use as training image
+                        ref_embeddings[username][rec[1]].append(rec[0]) # use as training image
+                
+                if any([score(rec[0]) < C + K for rec in list_faces]): # if needed, resave the embeddings
                     try:
                         with open(os.path.join(DIR,"preload_embeddings.pkl"), "wb") as f:
                             pickle.dump(ref_embeddings, f)
                     except PermissionError:
                         pass # that's normal if the user is running the script alone
                 return "pass"
-        if did_try == 0: # if there were no boundings of a sufficient quality, then this try wasn't good for this cap
-            failed_find_attempts[current_cap] += 1
-        attempts_count+=did_try
+        attempts_count += did_try
         time.sleep(0.1)
+
     cap.release()
     return f"fail - {reason}"
     
