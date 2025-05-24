@@ -72,7 +72,7 @@
  #define NSEC_PER_USEC ((uint64_t) 1000ULL)
  #define USEC_PER_MSEC ((uint64_t) 1000ULL)
 
- int fc_auth(const char* username);
+ int fc_auth(char* username);
  
  static size_t user_enrolled_prints_num (pam_handle_t *pamh,
                                          sd_bus       *bus,
@@ -192,6 +192,7 @@
  
  typedef struct
  {
+   char         *pam_face_id; //request id for Face Recognition dbus daemon
    char         *dev;
    bool          has_multiple_devices;
  
@@ -210,6 +211,7 @@
    pthread_mutex_t mutex;
    bool fc_auth_success;
    bool fp_avail;
+   bool fc_avail;
  } verify_data;
  
  static void
@@ -803,7 +805,7 @@
  
 #include <systemd/sd-bus.h>
 
-int fc_auth(const char *username) {
+int fc_auth(char *rid) {
     sd_bus *bus = NULL;
     int ret = 0, r;
     sd_bus_error error = SD_BUS_ERROR_NULL;
@@ -822,12 +824,11 @@ int fc_auth(const char *username) {
                            "org.linux.Face",            /* service name */
                            "/org/linux/Face",           /* object path */
                            "org.linux.FaceRecognition", /* interface name */
-                           "CheckFace",                 /* method */
+                           "GetState",                 /* method */
                            &error,
                            &reply,
-                           "si",                        /* input signature */
-                           username,
-                           5);                          /* max attempts */
+                           "s",                        /* input signature */
+                           rid);                          /* max attempts */
     if (r < 0) {
         fprintf(stderr, "CheckFace failed: %s\n", error.message);
         goto finish;
@@ -854,11 +855,11 @@ finish:
  static void* verify_fc_auth(void *d) {
    verify_data *data = d;
    pthread_mutex_lock(&data->mutex);
-   const char* username;
-   pam_get_user(data->pamh, &username, NULL);
+   char* rid = data->pam_face_id;
+   bool fc_avail = data->fc_avail;
    pthread_mutex_unlock(&data->mutex);
    while (true) {  // jusqu'à la fin du programme
-     if (fc_auth(username) == 1) {
+     if (fc_avail && fc_auth(rid) == 1) {
          pthread_mutex_lock(&data->mutex);
          data->fc_auth_success = true;  // Indique le succès de l'authentification faciale
          pthread_mutex_unlock(&data->mutex);
@@ -872,71 +873,105 @@ finish:
  static int
  do_auth (pam_handle_t *pamh, const char *username)
  {
-   pf_autoptr (verify_data) data = NULL;
-   pf_autoptr (sd_bus) bus = NULL;
-   pf_autoptr (sd_bus_slot) name_owner_changed_slot = NULL;
- 
-   data = calloc (1, sizeof (verify_data));
-   data->fp_avail = true;
-   data->max_tries = max_tries;
-   data->pamh = pamh;
-   pthread_mutex_init(&data->mutex, NULL); 
- 
-   if (sd_bus_open_system (&bus) < 0)
-     {
-       pam_syslog (pamh, LOG_ERR, "Error with getting the bus: %d", errno);
-       return PAM_AUTHINFO_UNAVAIL;
-     }
- 
-   data->dev = open_device (pamh, bus, username, &data->has_multiple_devices);
-   if (data->dev == NULL)
-     data->fp_avail = false;
- 
-   /* Only connect to NameOwnerChanged when needed. In case of automatic startup
-    * we rely on the fact that we never see those signals.
-    */
-   name_owner_changed_slot = NULL;
-   sd_bus_match_signal (bus,
-                        &name_owner_changed_slot,
-                        "org.freedesktop.DBus",
-                        "/org/freedesktop/DBus",
-                        "org.freedesktop.DBus",
-                        "NameOwnerChanged",
-                        name_owner_changed,
-                        data);
-   
-   data->stop_got_pw = false; // At this point, we didn't get the password
-   data->ppid = getpid(); // Save the PID for final usr1 signal
-   // handle stop signal
-   signal (SIGUSR1, handle_sigusr1);
-   // create threads for password and face auth
-   pthread_t pw_prompt_thread,fc_auth_thread;
-   if (pthread_create (&pw_prompt_thread, NULL, (void*) &prompt_pw, data) != 0)
-     send_err_msg (pamh, _("Failed to create thread"));
-   
-   if (pthread_create(&fc_auth_thread, NULL, (void*) &verify_fc_auth, data) != 0) 
-     send_err_msg (pamh, _("Failed to create thread"));
-   int ret;
-   if (data->fp_avail && claim_device (pamh, bus, data->dev, username)) { // if fingerprint is available, use the loop with it
-       ret = do_verify(bus, data);
-   } else { // Fingerprint auth isn't available, so fallback to the mainloop without it
-       ret = do_mainloop_no_fprint(bus, data);
-   }
-   pthread_cancel (pw_prompt_thread);
-   pthread_cancel (fc_auth_thread);
- 
-   /* Authenticating with fingerprint doesn't re-enable echo, so we have to */
-   struct termios term;
-   tcgetattr(fileno(stdin), &term);
-   term.c_lflag |= ECHO;
-   tcsetattr(fileno(stdin), 0, &term);
- 
-   /* Simply disconnect from bus if we return PAM_SUCCESS */
-   if (ret != PAM_SUCCESS)
-     release_device (pamh, bus, data->dev);
- 
-   sd_bus_close (bus);
-   return ret;
+    pf_autoptr (verify_data) data = NULL;
+    pf_autoptr (sd_bus) bus = NULL;
+    pf_autoptr (sd_bus_slot) name_owner_changed_slot = NULL;
+  
+    data = calloc (1, sizeof (verify_data));
+    data->fp_avail = true;
+    data->max_tries = max_tries;
+    data->pamh = pamh;
+    pthread_mutex_init(&data->mutex, NULL); 
+  
+    if (sd_bus_open_system (&bus) < 0)
+      {
+        pam_syslog (pamh, LOG_ERR, "Error with getting the bus: %d", errno);
+        return PAM_AUTHINFO_UNAVAIL;
+      }
+  
+    data->dev = open_device (pamh, bus, username, &data->has_multiple_devices);
+    if (data->dev == NULL)
+      data->fp_avail = false;
+    
+    int r;
+    sd_bus_error error = SD_BUS_ERROR_NULL;
+    sd_bus_message *reply = NULL;
+    r = sd_bus_call_method(bus,
+                            "org.linux.Face",            /* service name */
+                            "/org/linux/Face",           /* object path */
+                            "org.linux.FaceRecognition", /* interface name */
+                            "GetIdentifier",                 /* method */
+                            &error,
+                            &reply,
+                            "si",                        /* input signature */
+                            username,
+                            10);                          /* Timeout */
+    if (r < 0) {
+        data->fc_avail = false;
+    } else {
+        data->fc_avail = true;
+        r = sd_bus_message_read(reply, "s", &data->pam_face_id);
+    }
+  
+    /* Only connect to NameOwnerChanged when needed. In case of automatic startup
+      * we rely on the fact that we never see those signals.
+      */
+    name_owner_changed_slot = NULL;
+    sd_bus_match_signal (bus,
+                          &name_owner_changed_slot,
+                          "org.freedesktop.DBus",
+                          "/org/freedesktop/DBus",
+                          "org.freedesktop.DBus",
+                          "NameOwnerChanged",
+                          name_owner_changed,
+                          data);
+    
+    data->stop_got_pw = false; // At this point, we didn't get the password
+    data->ppid = getpid(); // Save the PID for final usr1 signal
+    // handle stop signal
+    signal (SIGUSR1, handle_sigusr1);
+    // create threads for password and face auth
+    pthread_t pw_prompt_thread,fc_auth_thread;
+    if (pthread_create (&pw_prompt_thread, NULL, (void*) &prompt_pw, data) != 0)
+      send_err_msg (pamh, _("Failed to create thread"));
+    
+    if (pthread_create(&fc_auth_thread, NULL, (void*) &verify_fc_auth, data) != 0) 
+      send_err_msg (pamh, _("Failed to create thread"));
+    int ret;
+    if (data->fp_avail && claim_device (pamh, bus, data->dev, username)) { // if fingerprint is available, use the loop with it
+        ret = do_verify(bus, data);
+    } else { // Fingerprint auth isn't available, so fallback to the mainloop without it
+        ret = do_mainloop_no_fprint(bus, data);
+    }
+    // kill threads
+    pthread_cancel (pw_prompt_thread);
+    pthread_cancel (fc_auth_thread);
+    if (data->fc_avail) { // if face Auth was available, tell it to remove cached id
+      sd_bus_call_method(bus,
+                            "org.linux.Face",            /* service name */
+                            "/org/linux/Face",           /* object path */
+                            "org.linux.FaceRecognition", /* interface name */
+                            "ReleaseDevice",                 /* method */
+                            &error,
+                            &reply,
+                            "s",                        /* input signature */
+                            data->pam_face_id);
+    }
+    /* Authenticating with fingerprint doesn't re-enable echo, so we have to */
+    struct termios term;
+    tcgetattr(fileno(stdin), &term);
+    term.c_lflag |= ECHO;
+    tcsetattr(fileno(stdin), 0, &term);
+  
+    /* Simply disconnect from bus if we return PAM_SUCCESS */
+    if (ret != PAM_SUCCESS)
+      release_device (pamh, bus, data->dev);
+    // release ressources that were used by Dbus
+    sd_bus_error_free(&error);
+    sd_bus_message_unref(reply);
+    sd_bus_close (bus);
+
+    return ret;
  }
  
  static bool

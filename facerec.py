@@ -74,8 +74,8 @@ def display_bgr_term(frame):
     for i in range(0, len(frame), 2):
         row1,row2=frame[i], frame[i+1]
         for pixtop,pixbottom in zip(row1,row2):
-            frame_unicode+=unicode_color_bg(*pixbottom)
-            frame_unicode+=unicode_color_fg(*pixtop)
+            frame_unicode+=unicode_color_fg(*pixbottom)
+            frame_unicode+=unicode_color_bg(*pixtop)
             frame_unicode+="▄"
         frame_unicode+="\n"
     frame_unicode+="\x1b[0m" + f"\x1b[{rows//2}A\r"
