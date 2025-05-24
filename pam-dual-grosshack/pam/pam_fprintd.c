@@ -830,14 +830,14 @@ int fc_auth(char *rid) {
                            "s",                        /* input signature */
                            rid);                          /* max attempts */
     if (r < 0) {
-        fprintf(stderr, "CheckFace failed: %s\n", error.message);
+        fprintf(stderr, "GetState failed: %s\n", error.message);
         goto finish;
     }
 
     /* 3) Parse the single-string return */
     r = sd_bus_message_read(reply, "s", &result);
     if (r < 0) {
-        fprintf(stderr, "Failed to parse CheckFace response: %s\n", strerror(-r));
+        fprintf(stderr, "Failed to parse GetFace response: %s\n", strerror(-r));
         goto finish;
     }
 
@@ -905,7 +905,7 @@ finish:
                             &reply,
                             "si",                        /* input signature */
                             username,
-                            10);                          /* Timeout */
+                            10000);                          /* Timeout */
     if (r < 0) {
         data->fc_avail = false;
     } else {

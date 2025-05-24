@@ -3,4 +3,5 @@ build-arch:
 	meson compile -C build
 
 install:
-	sudo cp ./build/pam/pam_fprintd_grosshack.so /lib/security/pam_dual_grosshack
+	sudo rm /lib/security/pam_dual_grosshack.so
+	sudo cp ./build/pam/pam_fprintd_grosshack.so /lib/security/pam_dual_grosshack.so

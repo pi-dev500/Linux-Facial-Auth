@@ -378,7 +378,7 @@ def align_face_with_landmarks(face_bgr, orig_frame, bbox, output_size=(128, 128)
     landmarks = np.array([*landmarks[:2],mouth_center])[:2]
     # 5. Reference points (ArcFace), scaled to output_size
     ref_landmarks = get_scaled_ref_landmarks((128,128),zoom=1)[:2] # + (bbox[0],bbox[1])
-    ref_landmarks_anti_spoof = get_scaled_ref_landmarks((128,128),zoom=1/anti_spoof_size_boost)[:2]
+    ref_landmarks_anti_spoof = get_scaled_ref_landmarks((128,128),zoom=2/anti_spoof_size_boost)[:2]
 
     # 6. Estimate affine transform
     tform, _ = cv2.estimateAffinePartial2D(landmarks, ref_landmarks, method=cv2.LMEDS)
@@ -483,9 +483,7 @@ def check(username,n_try=5, timeout=RECOGNITION_TIMEOUT, commands_trigger=()):
         if not ret:
             break
         frame = ensure_bgr(frame)
-        
-
-        if not image_quality_score(frame)>0.3:
+        if not image_quality_score(frame)>0.2:
             failed_find_attempts[current_cap] += 1
             continue
         else:
@@ -506,7 +504,7 @@ def check(username,n_try=5, timeout=RECOGNITION_TIMEOUT, commands_trigger=()):
         for (xmin, ymin, xmax, ymax, conf, _) in boxes:
             # Crop the detected face from the original frame
             face_crop = frame[ymin:ymax, xmin:xmax]
-            if not image_quality_score(face_crop) > 0.2:
+            if not image_quality_score(face_crop) > 0.25:
                 continue
             did_try=1
 
@@ -518,7 +516,7 @@ def check(username,n_try=5, timeout=RECOGNITION_TIMEOUT, commands_trigger=()):
             anti_spoof_face = cv2.resize(anti_spoof_face,[80,80]).transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
             anti_spoof_result = compiled_anti_spoof([anti_spoof_face])[compiled_anti_spoof.output(0)]
             label = np.argmax(anti_spoof_result)
-            value = anti_spoof_result[0][label]/2
+            value = anti_spoof_result[0][label]
             
             if label != 1:
                 spoof_attempts+=1
@@ -620,7 +618,7 @@ def add_face(cap_path=...,face_name=...,complete=False):
             rec_face = stretch_contrast(face_crop)
             rec_face , anti_spoof_face = align_face_with_landmarks(rec_face, frame, (xmin,ymin,xmax,ymax))
             #rec_face=gray_world_correction(rec_face)
-            frame[ymin:ymax, xmin:xmax] = cv2.resize(rec_face,crop_dims)
+            frame[ymin:ymax, xmin:xmax] = cv2.resize(anti_spoof_face,crop_dims)
             # 3. Run recognition on the face crop
             rec_input = rec_face.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
             rec_embedding = compiled_rec([rec_input])[compiled_rec.output(0)]

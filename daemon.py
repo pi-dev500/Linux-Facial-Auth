@@ -49,7 +49,7 @@ class Daemon(object):
         self.commands_trigger[id] = []
         if self.checkthread is None: # Start recognition if device is available
             self.checkthread = Thread(target = self.RunRecognition, args = (id,))
-            self.checkthread.run()
+            self.checkthread.start()
         return id
 
     def RunRecognition(self, recid):
@@ -64,16 +64,14 @@ class Daemon(object):
             return self.states[request_id]
         elif self.checkthread is None:
             self.checkthread = Thread(target = self.RunRecognition, args = (request_id,))
-            self.checkthread.run()
+            self.checkthread.start()
         return "None" # if first conditions is not respected, there is no state
 
     def ReleaseDevice(self,request_id):
-        if self.checkthread is not None:
+        if self.checkthread is not None and request_id in self.commands_trigger:
             self.commands_trigger[request_id].append(1) # send quit signal
             self.checkthread.join() # wait until the thread completely stop
         del self.states[request_id]
-
-        
 try:
     # D-Bus
     loop = GLib.MainLoop()
