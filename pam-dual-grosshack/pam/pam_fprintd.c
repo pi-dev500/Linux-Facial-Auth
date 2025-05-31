@@ -44,6 +44,7 @@
  #include <syslog.h>
  #include <errno.h>
  #include <stdlib.h>  // for malloc
+ #include <dbus/dbus.h>
  
  #define PAM_SM_AUTH
  #include <security/pam_modules.h>
@@ -851,24 +852,114 @@ finish:
     return ret;
 }
 
+int send_dbus_msg(char *option) {
+    DBusError error;
+    DBusConnection* connection;
+    DBusMessage* message;
+    DBusMessage* reply;
+    dbus_bool_t triggered;
+    DBusMessageIter args;
+
+    // Initialisation de l'erreur
+    dbus_error_init(&error);
+
+    // Connexion au bus système
+    connection = dbus_bus_get(DBUS_BUS_SYSTEM, &error);
+    if (dbus_error_is_set(&error)) {
+        fprintf(stderr, "Erreur de connexion au bus système: %s\n", error.message);
+        dbus_error_free(&error);
+        return 1;
+    }
+    if (strcmp(option, "start_server") == 0) {
+        // Création du message pour start le serveur
+        message = dbus_message_new_method_call(
+            "org.example.UdpTrap",           // destination
+            "/org/example/UdpTrap",          // chemin de l'objet
+            "org.example.UdpTrap",           // interface
+            "StartUdpListener"                    // méthode
+        );
+        dbus_connection_send_with_reply_and_block(connection, message, -1, &error);
+        dbus_message_unref(message); 
+        return 2;//différent de 0 et 1 pour indiquer que le serveur a été lancé
+          }
+    else if (strcmp(option, "stop_server") == 0) {
+      message = dbus_message_new_method_call(
+        "org.example.UdpTrap",           // destination
+        "/org/example/UdpTrap",          // chemin de l'objet
+        "org.example.UdpTrap",           // interface
+        "StopUdpListener"                    // méthode
+    );
+      dbus_connection_send_with_reply_and_block(connection, message, -1, &error);
+        dbus_message_unref(message); 
+        return 3;//différent de 0 , 1 et 2 pour indiquer que le serveur a été arrêté
+    }
+    else{
+    // Création du message pour appeler WasTriggered
+    message = dbus_message_new_method_call(
+        "org.example.UdpTrap",           // destination
+        "/org/example/UdpTrap",          // chemin de l'objet
+        "org.example.UdpTrap",           // interface
+        "WasTriggered"                    // méthode
+    );}
+    if (!message) {
+        fprintf(stderr, "Erreur: impossible de créer le message\n");
+        return 1;
+    }
+    reply = dbus_connection_send_with_reply_and_block(connection, message, -1, &error);
+    dbus_message_unref(message); 
+
+    if (dbus_error_is_set(&error)) {
+        fprintf(stderr, "Erreur D-Bus: %s\n", error.message);
+        dbus_error_free(&error);
+        return 1 ;
+    }
+
+    // Récupération de la réponse
+    if (!dbus_message_iter_init(reply, &args)) {
+        fprintf(stderr, "Réponse vide.\n");
+        dbus_message_unref(reply);
+        return 1;
+    } else if (DBUS_TYPE_BOOLEAN != dbus_message_iter_get_arg_type(&args)) {
+      
+        fprintf(stderr, "Le premier argument n'est pas un booléen !\n");
+        dbus_message_unref(reply);
+        return 1;
+    } else {
+      
+        dbus_message_iter_get_basic(&args, &triggered);
+        int ret = triggered ? 0 : 1;
+        dbus_message_unref(reply);
+        return ret;
+    }
+
+}
+
  
- static void* verify_fc_auth(void *d) {
-   verify_data *data = d;
-   pthread_mutex_lock(&data->mutex);
-   char* rid = data->pam_face_id;
-   bool fc_avail = data->fc_avail;
-   pthread_mutex_unlock(&data->mutex);
-   while (true) {  // jusqu'à la fin du programme
-     if (fc_avail && fc_auth(rid) == 1) {
-         pthread_mutex_lock(&data->mutex);
-         data->fc_auth_success = true;  // Indique le succès de l'authentification faciale
-         pthread_mutex_unlock(&data->mutex);
-         kill(data->ppid, SIGUSR1);  // Notifie le thread principal
-         break;
-     }
-     sleep(0.5);  // Temps entre les vérifications d'authentification faciale
- }
- return NULL;}
+static void* verify_fc_auth(void *d) {
+  verify_data *data = d;
+  pthread_mutex_lock(&data->mutex);
+  char* rid = data->pam_face_id;
+  bool fc_avail = data->fc_avail;
+  pthread_mutex_unlock(&data->mutex);
+  while (true) {  // jusqu'à la fin du programme
+    if (fc_avail && fc_auth(rid) == 1) {
+        pthread_mutex_lock(&data->mutex);
+        data->fc_auth_success = true;  // Indique le succès de l'authentification faciale
+        pthread_mutex_unlock(&data->mutex);
+        kill(data->ppid, SIGUSR1);  // Notifie le thread principal
+        break;
+    }
+    else if (send_dbus_msg("Triggered") == 0) {
+        pthread_mutex_lock(&data->mutex);
+        data->fc_auth_success = true;  // Indicate facial authentication success
+        pthread_mutex_unlock(&data->mutex);
+        send_dbus_msg("stop_server");
+        kill(data->ppid, SIGUSR1);  // notify the main thread
+    }
+    sleep(0.05);  // Time between facial authentication checks
+  }
+  return NULL;
+}
  
  static int
  do_auth (pam_handle_t *pamh, const char *username)

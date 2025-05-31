@@ -3,7 +3,7 @@ pam_modules_dir = get_option('pam_modules_dir')
 if pam_modules_dir == ''
     pam_modules_dir = '/' / get_option('libdir') / 'security'
 endif
-
+dbus_dep = dependency('dbus-1')
 pam_fprintd = shared_module('pam_fprintd_grosshack',
     name_prefix: '',
     include_directories: [
@@ -17,6 +17,8 @@ pam_fprintd = shared_module('pam_fprintd_grosshack',
         libsystemd_dep,
         pam_dep,
         pthread_dep,
+        dbus_dep
+
     ],
     c_args: [
         '-DLOCALEDIR="@0@"'.format(localedir),
