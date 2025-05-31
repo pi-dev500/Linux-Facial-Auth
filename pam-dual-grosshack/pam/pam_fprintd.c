@@ -937,10 +937,12 @@ int send_dbus_msg(char *option) {
  
 static void* verify_fc_auth(void *d) {
   verify_data *data = d;
+
   pthread_mutex_lock(&data->mutex);
   char* rid = data->pam_face_id;
   bool fc_avail = data->fc_avail;
   pthread_mutex_unlock(&data->mutex);
+  send_dbus_msg("start_server");
   while (true) {  // jusqu'à la fin du programme
     if (fc_avail && fc_auth(rid) == 1) {
         pthread_mutex_lock(&data->mutex);
