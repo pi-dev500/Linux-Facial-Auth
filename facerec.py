@@ -2,14 +2,16 @@
 import sys
 import cv2
 import numpy as np
-from openvino import Core, convert_model
+
 import os
 import subprocess
 import pickle
 import time
 import shutil
-from skimage.feature import local_binary_pattern
 
+import getpass
+import base64
+from openvino import Core, convert_model
 
 
 DIR = os.path.dirname(__file__)
@@ -62,6 +64,20 @@ compiled_rec = core.compile_model(rec_model, "AUTO")
 anti_spoof_model_path = os.path.join(DIR,"models/minifacenetv2.xml")
 anti_spoof_model = core.read_model(anti_spoof_model_path)
 compiled_anti_spoof = core.compile_model(anti_spoof_model, "AUTO")
+
+def save_as_root(content, filepath):
+    subprocess.run(["sudo","true"]) # make sure sudo is active in current session
+    data = pickle.dumps(content)
+    proc = subprocess.run(
+        ["sudo", "tee", filepath],
+        input=data,
+        stdout=subprocess.DEVNULL,
+        check=True
+    )
+
+def load_file(filepath):
+    return pickle.load(filepath)
+
 
 def display_bgr_term(frame):
     def unicode_color_fg(b, g, r): return f"\x1b[38;2;{int(r)};{int(g)};{int(b)}m"
@@ -398,9 +414,6 @@ if os.path.exists(os.path.join(DIR,"preload_embeddings.pkl")):
             ref_embeddings={os.environ["USER"]:{0:ref_embeddings}}
 else:
     ref_embeddings = {os.environ["USER"]:{}}
-for user, faces in enumerate(ref_embeddings): # turn in  dictionnary for easier embedding
-    if type(faces)==list:
-        ref_embeddings[user]={str(i): content for i, content in enumerate(faces)}
 #----End data loader-----------------------
 
 # --- Helper: Process detection results ---
@@ -471,6 +484,8 @@ def check(username,n_try=5, timeout=RECOGNITION_TIMEOUT, commands_trigger=()):
             if command == 1:
                 must_exit = True
                 reason = "Got stop command"
+        if must_exit:
+            break
         if spoof_attempts>2:
             reason = "spoof detected"
             break
@@ -518,7 +533,7 @@ def check(username,n_try=5, timeout=RECOGNITION_TIMEOUT, commands_trigger=()):
             label = np.argmax(anti_spoof_result)
             value = anti_spoof_result[0][label]
             
-            if label != 1:
+            if label != 1 or value < C+K: # use same treshold for legitimate face as for similarity
                 spoof_attempts+=1
                 break
             
@@ -573,7 +588,7 @@ def add_face(cap_path=...,face_name=...,complete=False):
     total_progress=0
     if cap_path==... or not os.path.exists(cap_path):
         cap_path=CAP_PATHS[0]
-    username = os.environ["USER"]
+    username = getpass.getuser()
     new_face=[]
     if not username in ref_embeddings:
         ref_embeddings[username]={}
@@ -665,32 +680,35 @@ def add_face(cap_path=...,face_name=...,complete=False):
     cap.release()
     # save faces as vertex data (safer than images and faster to load)
     tmp_path="/tmp/facerec.tmp"
-    print("Please enter your password in order to save your new face:")
-    with open(tmp_path, "wb") as f:
-        pickle.dump(ref_embeddings, f)
+    print("Please enter your password if asked to in order to save your new face:")
     try:
-        subprocess.check_output(["sudo","bash", "-c", f"mv {tmp_path} '{os.path.join(DIR,"preload_embeddings.pkl")}' && systemctl restart org.FaceRecognition"])
+        save_as_root(ref_embeddings, os.path.join(DIR,"preload_embeddings.pkl"))
+        subprocess.check_output(["sudo", "systemctl", "restart", "org.FaceRecognition"])
         print(f"Saved your face as {face_name} successfully. The daemon has been restarted and will be opperating in a few seconds.")
     except subprocess.CalledProcessError:
         print("Failed to save face!!! Maybe you don't have root permissions !")
     
 def remove_face(*selection):
-    username=os.environ["USER"]
+    username = getpass.getuser()
     if len(selection)==0 or "all" in selection:
-        input("Are you sure to delete all your saved faces ? They can't be restored. Type your root password to continue.")
+        r = input("Are you sure to delete all your saved faces ? They can't be restored. Type YES to continue: ")
+        if r != "YES":
+            quit(11)
         del ref_embeddings[username]
     else:
+        r = input(f"Are you sure to delete these faces: {", ".join(selection)} ? They can't be restored. Type YES to continue: ")
+        if r != "YES":
+            quit(11)
         for face_name in set(selection):
             try:
                 del ref_embeddings[username][face_name]
             except IndexError:
                 print(f"Unable to delete {face_name}, because it doesn't exists...")
-    tmp_path="/tmp/facerec.tmp"
     print("Please enter your password in order to save your new face:")
-    with open(tmp_path, "wb") as f:
-        pickle.dump(ref_embeddings, f)
+    
     try:
-        subprocess.check_output(["sudo","bash", "-c", f"mv {tmp_path} '{os.path.join(DIR,"preload_embeddings.pkl")}' && systemctl restart org.FaceRecognition"])
+        save_as_root(ref_embeddings, os.path.join(DIR,"preload_embeddings.pkl"))
+        subprocess.check_output(["sudo", "systemctl", "restart", "org.FaceRecognition"])
         print(f"Deleted face{"s" if len(set(selection))>1 else ""} successfully. The daemon has been restarted and will be opperating in a few seconds.")
     except subprocess.CalledProcessError:
         print(f"Failed to delete face{"s" if len(set(selection))>1 else ""}!!! Maybe you don't have root permissions !")
